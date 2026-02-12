@@ -34,15 +34,10 @@ struct ParserView: View {
                     .buttonStyle(.borderedProminent)
 
                     Spacer()
-
-                    Button("Fertig") {
-                        dismiss()
-                    }
-                    .buttonStyle(.bordered)
                 }
             }
             .padding()
-            .navigationTitle("Call")
+            .navigationTitle("Call Parser")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
