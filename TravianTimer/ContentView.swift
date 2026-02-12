@@ -51,13 +51,6 @@ struct CallsTabView: View {
         NavigationStack {
             VStack(spacing: 10) {
 
-                HStack(spacing: 10) {
-                    Button("Deff Call Parser") { showParserSheet = true }
-                        .buttonStyle(.borderedProminent)
-
-                    Spacer()
-                }
-
                 HStack {
                     Picker("", selection: $timeSort) {
                         ForEach(TimeSort.allCases, id: \.self) { mode in
@@ -161,6 +154,19 @@ struct CallsTabView: View {
             }
             .padding(.horizontal)
             .navigationTitle("Travian Timer")
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    showParserSheet = true
+                } label: {
+                    Label("Discord", systemImage: "paperplane")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .background(.ultraThinMaterial)
+            }
             .sheet(isPresented: $showParserSheet) {
                 ParserView(
                     inputText: $inputText,
