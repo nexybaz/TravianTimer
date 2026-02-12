@@ -34,9 +34,6 @@ struct ContentView: View {
                     Button("Call") { showParserSheet = true }
                         .buttonStyle(.bordered)
 
-                    Button("Auswerten") { evaluate() }
-                        .buttonStyle(.borderedProminent)
-
                     Spacer()
                 }
 
@@ -75,7 +72,6 @@ struct ContentView: View {
                 }
 
                 List(displayedResults) { row in
-
                     VStack(spacing: 8) {
 
                         Button {
