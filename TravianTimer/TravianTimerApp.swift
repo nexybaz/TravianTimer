@@ -1,10 +1,3 @@
-//
-//  TravianTimerApp.swift
-//  TravianTimer
-//
-//  Created by Marc Freiburghaus on 11.02.2026.
-//
-
 import SwiftUI
 import SwiftData
 

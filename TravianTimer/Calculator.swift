@@ -27,6 +27,10 @@ struct Calculator {
 
         var result: [OptionRow] = []
 
+        // World speed multiplier (x1 -> 1.0, x2 -> 1.5, x3 -> 2.0, x5 -> 3.0)
+        let stored = UserDefaults.standard.double(forKey: "troopMultiplier")
+        let multiplier = stored > 0 ? stored : 1.0
+
         for village in starts {
 
             let dist = distance(
@@ -38,8 +42,13 @@ struct Calculator {
 
             for troop in village.troops {
 
-                let speed = troop.speed
-                let hours = dist / speed
+                let baseSpeed = troop.speed
+                let effectiveSpeed = baseSpeed * multiplier
+
+                // Safety: avoid division by zero
+                guard effectiveSpeed > 0 else { continue }
+
+                let hours = dist / effectiveSpeed
                 let travelSeconds = hours * 3600.0
                 let sendTime = arrival.addingTimeInterval(-travelSeconds)
 

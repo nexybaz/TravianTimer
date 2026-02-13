@@ -28,7 +28,7 @@ struct CallParser {
 
     static func parse(text: String, now: Date = .now, calendar: Calendar = .current) throws -> ParsedCall {
 
-        let t = text.replacingOccurrences(of: "\u{00A0}", with: " ")
+        let t = cleanDiscordText(text)
 
         guard let coords = extractCoords(from: t) else {
             throw ParseError.noCoordinates
@@ -58,11 +58,35 @@ struct CallParser {
         )
     }
 
+    private static func cleanDiscordText(_ raw: String) -> String {
+        // Removes invisible Unicode format marks (common when copying from Discord)
+        // and normalizes whitespace so regex matching is stable.
+
+        var s = raw
+
+        // Normalize common non-breaking spaces
+        s = s.replacingOccurrences(of: "\u{00A0}", with: " ")
+        s = s.replacingOccurrences(of: "\t", with: " ")
+
+        // Remove Unicode "Format" characters (category Cf)
+        if let re = try? NSRegularExpression(pattern: "\\p{Cf}+", options: []) {
+            let range = NSRange(location: 0, length: (s as NSString).length)
+            s = re.stringByReplacingMatches(in: s, options: [], range: range, withTemplate: "")
+        }
+
+        // Collapse multiple spaces
+        while s.contains("  ") {
+            s = s.replacingOccurrences(of: "  ", with: " ")
+        }
+
+        return s
+    }
+
     // 1) (12|8) oder (-4/3)
     // 2) Link .../x:-4/y:6
     private static func extractCoords(from text: String) -> (x: Int, y: Int)? {
 
-        if let m = firstMatch(text, pattern: #"\((-?\d+)\s*[\/|]\s*(-?\d+)\)"#) {
+        if let m = firstMatch(text, pattern: #"\(\s*(-?\d+)\s*[\/|]\s*(-?\d+)\s*\)"#) {
             return (m[1].intValue, m[2].intValue)
         }
 
@@ -76,6 +100,27 @@ struct CallParser {
     // findet 18:12 oder 18:12:00
     private static func extractTime(from text: String) -> (h: Int, m: Int, s: Int)? {
 
+        let lines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        func hasKeyword(_ line: String) -> Bool {
+            let l = line.lowercased()
+            return l.contains("ankunft") || l.contains("vor") || l.contains("bis")
+        }
+
+        // 1) Prefer lines with arrival keywords
+        for line in lines where hasKeyword(line) {
+            if let m = firstMatch(line, pattern: #"(\d{1,2}):(\d{2})(?::(\d{2}))?"#) {
+                let h = m[1].intValue
+                let min = m[2].intValue
+                let s = m.count > 3 ? m[3].intValue : 0
+                return (h, min, s)
+            }
+        }
+
+        // 2) Fallback: first time anywhere
         guard let m = firstMatch(text, pattern: #"(\d{1,2}):(\d{2})(?::(\d{2}))?"#) else {
             return nil
         }
