@@ -8,6 +8,10 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
     case catapult = "Katapult"
 
     var speed: Double {
+        baseSpeed * Double(Defaults.speedMultiplier)
+    }
+
+    private var baseSpeed: Double {
         switch self {
         case .phalanx: return 7
         case .swordsman: return 6

@@ -1,3 +1,5 @@
+import Foundation
+
 enum Defaults {
     static let startVillages: [StartVillage] = [
 
@@ -78,4 +80,12 @@ enum Defaults {
             troops: [.phalanx]
         )
     ]
+
+    static var speedMultiplier: Int {
+        // Saved from Settings via AppStorage("speedMultiplier").
+        // If not set yet, UserDefaults returns 0 -> default to 1.
+        let raw = UserDefaults.standard.integer(forKey: "speedMultiplier")
+        let value = (raw == 0) ? 1 : raw
+        return max(1, min(3, value))
+    }
 }
