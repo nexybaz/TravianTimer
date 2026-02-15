@@ -49,7 +49,7 @@ struct ContentView: View {
 
 // MARK: - Call Model
 
-struct CallItem: Identifiable, Hashable {
+struct CallItem: Identifiable, Hashable, Codable {
 
     enum Status: String, Codable {
         case open
@@ -70,11 +70,18 @@ struct CallItem: Identifiable, Hashable {
 
 final class CallsStore: ObservableObject {
 
+    private let callsKey = "callsV1"
+
     // Parser input
     @Published var inputText: String = ""
 
     // Call list
-    @Published var calls: [CallItem] = []
+    @Published var calls: [CallItem] = [] {
+        didSet { saveCalls() }
+    }
+    init() {
+        loadCalls()
+    }
 
     // Player profile (start villages + troop selection)
     @Published var profile = ProfileStore.shared
@@ -196,6 +203,17 @@ final class CallsStore: ObservableObject {
         }
 
         return "Call"
+    }
+
+    private func loadCalls() {
+        guard let data = UserDefaults.standard.data(forKey: callsKey) else { return }
+        guard let decoded = try? JSONDecoder().decode([CallItem].self, from: data) else { return }
+        self.calls = decoded
+    }
+
+    private func saveCalls() {
+        guard let data = try? JSONEncoder().encode(calls) else { return }
+        UserDefaults.standard.set(data, forKey: callsKey)
     }
 }
 
@@ -790,15 +808,6 @@ struct SettingsView: View {
 
                 Section("Startdörfer") {
 
-                    if profile.villages.isEmpty {
-                        Button("Aus Defaults übernehmen") {
-                            profile.seedFromDefaultsIfEmpty()
-                        }
-                        Text("Danach pro Dorf die Truppen auswählen.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
                     ForEach(profile.villages) { v in
                         Button {
                             editVillage = v
@@ -1318,3 +1327,4 @@ struct VillageEditorView: View {
         }
     }
 }
+
