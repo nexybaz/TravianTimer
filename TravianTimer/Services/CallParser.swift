@@ -22,6 +22,7 @@ struct ParsedCall: Equatable {
     var targetY: Int
     var arrival: Date
     var link: URL?
+    var cropLimit: Int?
 }
 
 struct CallParser {
@@ -49,12 +50,14 @@ struct CallParser {
         }
 
         let link = extractFirstTravianLink(from: t)
+        let cropLimit = extractCropLimit(from: t)
 
         return ParsedCall(
             targetX: coords.x,
             targetY: coords.y,
             arrival: arrival,
-            link: link
+            link: link,
+            cropLimit: cropLimit
         )
     }
 
@@ -137,6 +140,47 @@ struct CallParser {
         let pattern = #"https?://[^\s]+kingdoms\.[^\s]+"#
         guard let m = firstMatch(text, pattern: pattern) else { return nil }
         return URL(string: String(m[0]))
+    }
+
+    /// Erkennt Getreide-Obergrenzen im Format "0/50k", "12k/50k", "0/50000" etc.
+    /// Nimmt die rechte Zahl (= Limit). "k" wird als ×1000 interpretiert.
+    private static func extractCropLimit(from text: String) -> Int? {
+        // Pattern: Zahl(optional k) / Zahl(optional k)
+        // z.B. "0/50k", "12k/50k", "0/50000", "3.5k/25k"
+        let pattern = #"(\d+(?:[.,]\d+)?)\s*[kK]?\s*/\s*(\d+(?:[.,]\d+)?)\s*([kK])?"#
+
+        let lines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for line in lines {
+            // Skip Koordinaten-Zeilen (enthalten x|y oder x/y in Klammern)
+            if line.contains("(") && line.contains(")") { continue }
+
+            guard let m = firstMatch(line, pattern: pattern) else { continue }
+
+            let rightStr = String(m[2]).replacingOccurrences(of: ",", with: ".")
+            guard let rightVal = Double(rightStr), rightVal > 0 else { continue }
+
+            // Prüfe ob rechts ein 'k' steht (Gruppe 3 oder im vollen Match)
+            let rightHasK: Bool
+            if m.count > 3 {
+                rightHasK = String(m[3]).lowercased() == "k"
+            } else {
+                // Optionale Gruppe nicht gematched → kein k
+                rightHasK = false
+            }
+
+            let limit = Int(rightVal * (rightHasK ? 1000 : 1))
+
+            // Plausibilitätscheck: Crop-Limits sind typischerweise > 100
+            if limit >= 100 {
+                return limit
+            }
+        }
+
+        return nil
     }
 
     private static func combine(date: Date, time: (h: Int, m: Int, s: Int), calendar: Calendar) -> Date {

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum TroopKind: String, Codable, CaseIterable, Hashable {
 
@@ -79,6 +80,129 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
         case .gaulsTrebuchet: return "Katapult"
         case .gaulsChieftain: return "Stammesführer"
         case .gaulsSettler: return "Siedler"
+        }
+    }
+
+    // MARK: - Off / Deff Klassifikation
+
+    /// Offensiv-Truppen (primär Angriffswerte). Belagerung, Anführer und Siedler zählen weder als Off noch Deff.
+    var isOffensive: Bool {
+        switch self {
+        // Römer
+        case .romansImperian, .romansEquitesImperatoris, .romansEquitesCaesaris:
+            return true
+        // Germanen
+        case .teutonsClubswinger, .teutonsAxefighter, .teutonsTeutonicKnight:
+            return true
+        // Gallier
+        case .gaulsSwordsman, .gaulsTheutatesThunder, .gaulsHaeduan:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Defensiv-Truppen (primär Verteidigungswerte).
+    var isDefensive: Bool {
+        switch self {
+        // Römer
+        case .romansLegionnaire, .romansPraetorian, .romansEquitesLegati:
+            return true
+        // Germanen
+        case .teutonsSpearfighter, .teutonsPaladin:
+            return true
+        // Gallier
+        case .gaulsPhalanx, .gaulsDruidrider:
+            return true
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Volk & Kategorie (für Deff-Übersicht)
+
+    /// Volk-Prefix: "romans", "teutons" oder "gauls"
+    var tribe: String {
+        if rawValue.hasPrefix("romans.") { return "romans" }
+        if rawValue.hasPrefix("teutons.") { return "teutons" }
+        return "gauls"
+    }
+
+    /// Farbe pro Volk für UI-Darstellung
+    var tribeColor: Color {
+        switch tribe {
+        case "romans":  return .blue
+        case "teutons": return .orange
+        default:        return .green
+        }
+    }
+
+    /// SF Symbol basierend auf Truppenkategorie
+    var categoryIcon: String {
+        switch self {
+        // Kavallerie
+        case .romansEquitesLegati, .romansEquitesImperatoris, .romansEquitesCaesaris,
+             .gaulsTheutatesThunder, .gaulsDruidrider, .gaulsHaeduan,
+             .teutonsPaladin, .teutonsTeutonicKnight:
+            return "figure.equestrian.sports"
+        // Belagerung
+        case .romansBatteringRam, .romansFireCatapult,
+             .gaulsRam, .gaulsTrebuchet,
+             .teutonsRam, .teutonsCatapult:
+            return "bolt.shield.fill"
+        // Späher
+        case .gaulsPathfinder, .teutonsScout:
+            return "eye"
+        // Anführer
+        case .romansSenator, .gaulsChieftain, .teutonsChief:
+            return "crown"
+        // Siedler
+        case .romansSettler, .gaulsSettler, .teutonsSettler:
+            return "house"
+        // Infanterie (default)
+        default:
+            return "shield.fill"
+        }
+    }
+
+    /// Getreideverbrauch pro Truppe pro Stunde
+    var cropPerHour: Int {
+        switch self {
+        // Römer
+        case .romansLegionnaire:          return 1
+        case .romansPraetorian:           return 1
+        case .romansImperian:             return 1
+        case .romansEquitesLegati:        return 2
+        case .romansEquitesImperatoris:   return 3
+        case .romansEquitesCaesaris:      return 4
+        case .romansBatteringRam:         return 3
+        case .romansFireCatapult:         return 6
+        case .romansSenator:             return 5
+        case .romansSettler:             return 1
+
+        // Germanen
+        case .teutonsClubswinger:        return 1
+        case .teutonsSpearfighter:       return 1
+        case .teutonsAxefighter:         return 1
+        case .teutonsScout:              return 1
+        case .teutonsPaladin:            return 2
+        case .teutonsTeutonicKnight:      return 3
+        case .teutonsRam:                return 3
+        case .teutonsCatapult:           return 6
+        case .teutonsChief:              return 4
+        case .teutonsSettler:            return 1
+
+        // Gallier
+        case .gaulsPhalanx:              return 1
+        case .gaulsSwordsman:            return 1
+        case .gaulsPathfinder:           return 1
+        case .gaulsTheutatesThunder:     return 2
+        case .gaulsDruidrider:           return 2
+        case .gaulsHaeduan:              return 3
+        case .gaulsRam:                  return 3
+        case .gaulsTrebuchet:            return 6
+        case .gaulsChieftain:            return 4
+        case .gaulsSettler:              return 1
         }
     }
 

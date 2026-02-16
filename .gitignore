@@ -1,0 +1,12 @@
+# Secrets
+discord-bot/.env
+discord-bot/node_modules/
+
+# Xcode
+*.xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+
+# macOS
+.DS_Store

@@ -1,0 +1,16 @@
+{
+  "name": "travian-timer-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord Bot, der Deff-Calls erkennt und per Push an TravianTimer sendet",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^17.3.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
