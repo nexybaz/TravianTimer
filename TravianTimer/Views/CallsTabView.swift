@@ -36,6 +36,22 @@ struct CallsTabView: View {
                     }
                 }
 
+                if !openTeamCalls.isEmpty {
+                    Section {
+                        ForEach(openTeamCalls) { call in
+                            NavigationLink(value: call.id) {
+                                CallRow(call: call, isTeamCall: true)
+                            }
+                        }
+                    } header: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.3.fill")
+                                .font(.caption2)
+                            Text("Team-Calls")
+                        }
+                    }
+                }
+
                 if !doneCalls.isEmpty {
                     Section("Vergangen") {
                         ForEach(doneCalls) { call in
@@ -61,7 +77,7 @@ struct CallsTabView: View {
                     }
                 }
 
-                if store.calls.isEmpty {
+                if store.calls.isEmpty && store.teamCalls.isEmpty {
                     VStack(spacing: 14) {
                         Image(systemName: "scope")
                             .font(.system(size: 44))
@@ -83,16 +99,35 @@ struct CallsTabView: View {
                 }
             }
             .navigationTitle("Travian Timer")
+            .refreshable {
+                await store.syncWithCloud()
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if store.isSyncing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else if store.canSync && store.lastSyncDate != nil {
+                        Image(systemName: "checkmark.icloud")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                    }
+                }
+            }
             .navigationDestination(for: UUID.self) { id in
                 if let call = store.calls.first(where: { $0.id == id }) {
                     CallDetailView(call: call, initialExpandedRowKey: store.pendingOpenRowKey)
+                        .environmentObject(store)
+                } else if let teamCall = store.teamCalls.first(where: { $0.id == id }) {
+                    CallDetailView(call: teamCall, initialExpandedRowKey: nil)
                         .environmentObject(store)
                 } else {
                     Text("Call nicht gefunden")
                 }
             }
             .navigationDestination(for: DefenseOverviewRoute.self) { route in
-                if let call = store.calls.first(where: { $0.id == route.callId }) {
+                let allCalls = store.calls + store.teamCalls
+                if let call = allCalls.first(where: { $0.id == route.callId }) {
                     DefenseOverviewView(call: call)
                 } else {
                     Text("Call nicht gefunden")
@@ -131,12 +166,19 @@ struct CallsTabView: View {
             .filter { $0.status == .done }
             .sorted { $0.arrival > $1.arrival }
     }
+
+    private var openTeamCalls: [CallItem] {
+        store.teamCalls
+            .filter { $0.status == .open }
+            .sorted { $0.arrival < $1.arrival }
+    }
 }
 
 // MARK: - Call Row
 
 struct CallRow: View {
     let call: CallItem
+    var isTeamCall: Bool = false
 
     var body: some View {
         let now = Date.now
@@ -149,8 +191,16 @@ struct CallRow: View {
                 .padding(.top, 6)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(call.title)
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Text(call.title)
+                        .font(.headline)
+
+                    if isTeamCall {
+                        Image(systemName: "person.3.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                    }
+                }
 
                 HStack(spacing: 8) {
                     Text("(\(call.targetX)|\(call.targetY))")
@@ -218,12 +268,12 @@ struct CallRow: View {
         }.reduce(0, +)
     }
 
-    /// Farbe nach Füllgrad: <50% grün, 50-90% orange, >90% / über Limit rot
+    /// Farbe nach Füllgrad: <50% rot (schlecht gefüllt), 50-90% orange, >90% grün (gut gefüllt)
     private func cropBarColor(ratio: Double, over: Bool) -> Color {
-        if over       { return .red }
-        if ratio > 0.9 { return .red }
+        if over        { return .green }
+        if ratio > 0.9 { return .green }
         if ratio > 0.5 { return .orange }
-        return .green
+        return .red
     }
 
     private func relativeLabel(now: Date) -> String {

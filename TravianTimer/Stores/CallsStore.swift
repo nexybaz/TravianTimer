@@ -17,6 +17,10 @@ final class CallsStore: ObservableObject {
     @Published var calls: [CallItem] = [] {
         didSet { saveCalls() }
     }
+
+    // Team-Calls (shared, nicht lokal persistiert)
+    @Published var teamCalls: [CallItem] = []
+
     init() {
         loadCalls()
     }
@@ -59,6 +63,7 @@ final class CallsStore: ObservableObject {
         let targetY = dict["targetY"] as? Int ?? 0
         let cropLimit = dict["cropLimit"] as? Int
         let discordMsgId = dict["discordMessageId"] as? String
+        let guildId = dict["guildId"] as? String
         let link: URL? = (dict["link"] as? String).flatMap { URL(string: $0) }
 
         var arrival = Date.now
@@ -97,7 +102,8 @@ final class CallsStore: ObservableObject {
             status: .open,
             createdAt: .now,
             cropLimit: cropLimit,
-            discordMessageId: discordMsgId
+            discordMessageId: discordMsgId,
+            guildId: guildId
         )
 
         calls.insert(call, at: 0)
@@ -171,10 +177,16 @@ final class CallsStore: ObservableObject {
     func toggleDone(_ call: CallItem) {
         guard let idx = calls.firstIndex(where: { $0.id == call.id }) else { return }
         calls[idx].status = (calls[idx].status == .open) ? .done : .open
+        calls[idx].updatedAt = .now
     }
 
     func delete(_ call: CallItem) {
+        let deletedIds = calls.filter { $0.id == call.id }.map(\.id)
         calls.removeAll { $0.id == call.id }
+        // Cloud: gelöschte Calls auch serverseitig entfernen
+        if canSync && !deletedIds.isEmpty {
+            Task { await CallSyncService.shared.deleteCalls(ids: deletedIds) }
+        }
     }
 
     func options(for call: CallItem, now: Date) -> [OptionRow] {
@@ -251,10 +263,14 @@ final class CallsStore: ObservableObject {
         }
     }
 
+    /// Verhindert debouncedSync bei internen Updates (z.B. transient data clearing)
+    private var suppressSync = false
+
     private func saveCalls() {
-        let payload = CallsPayload(version: 2, savedAt: .now, calls: calls)
+        let payload = CallsPayload(version: 3, savedAt: .now, calls: calls)
         guard let data = try? JSONEncoder().encode(payload) else { return }
         UserDefaults.standard.set(data, forKey: callsKeyV2)
+        if !suppressSync { debouncedSync() }
     }
 
     func resetCalls() {
@@ -262,6 +278,218 @@ final class CallsStore: ObservableObject {
         UserDefaults.standard.removeObject(forKey: callsKeyV1)
         UserDefaults.standard.removeObject(forKey: callsKeyV2)
     }
+
+    // MARK: - Cloud Sync
+
+    @Published var isSyncing: Bool = false
+    @Published var lastSyncDate: Date? = {
+        let ts = UserDefaults.standard.double(forKey: "lastCloudSyncTimestamp")
+        return ts > 0 ? Date(timeIntervalSince1970: ts) : nil
+    }()
+    @Published var syncError: String? = nil
+
+    private var syncTask: Task<Void, Never>? = nil
+    private var periodicSyncTimer: Timer?
+
+    var canSync: Bool {
+        AuthService.shared.isAuthenticated
+    }
+
+    /// Debounced: wartet 2s nach letzter Änderung, dann Push an Cloud.
+    private func debouncedSync() {
+        guard canSync else { return }
+        syncTask?.cancel()
+        syncTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            await pushToCloud()
+        }
+    }
+
+    /// Push lokale Calls in die Cloud.
+    private func pushToCloud() async {
+        guard canSync else { return }
+        let success = await CallSyncService.shared.pushCalls(calls)
+        if success {
+            // Transiente Daten bereinigen ohne neuen Sync auszulösen
+            suppressSync = true
+            for i in calls.indices {
+                calls[i].deletedPledgeIds = []
+            }
+            suppressSync = false
+
+            lastSyncDate = .now
+            UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastCloudSyncTimestamp")
+            syncError = nil
+        }
+    }
+
+    /// Vollständiger Sync: Push + Pull + Merge.
+    func syncWithCloud() async {
+        guard canSync, !isSyncing else { return }
+        await MainActor.run { isSyncing = true; syncError = nil }
+
+        // 1. Push lokale Calls
+        let pushOk = await CallSyncService.shared.pushCalls(calls)
+
+        if pushOk {
+            // Transiente Daten bereinigen
+            await MainActor.run {
+                suppressSync = true
+                for i in calls.indices { calls[i].deletedPledgeIds = [] }
+                suppressSync = false
+            }
+        }
+
+        // 2. Pull Cloud-Calls + Team-Calls + gelöschte IDs
+        if let result = await CallSyncService.shared.pullCalls() {
+            await MainActor.run {
+                mergeCalls(from: result.calls, deletedIds: Set(result.deletedCallIds))
+                teamCalls = result.teamCalls
+                lastSyncDate = .now
+                UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastCloudSyncTimestamp")
+                syncError = nil
+            }
+        } else if !pushOk {
+            await MainActor.run { syncError = "Sync fehlgeschlagen" }
+        }
+
+        await MainActor.run { isSyncing = false }
+    }
+
+    /// Stellt Calls aus der Cloud wieder her (ersetzt lokale Calls).
+    func restoreFromCloud() async {
+        guard canSync, !isSyncing else { return }
+        await MainActor.run { isSyncing = true; syncError = nil }
+
+        if let result = await CallSyncService.shared.pullCalls() {
+            await MainActor.run {
+                calls = result.calls
+                teamCalls = result.teamCalls
+                lastSyncDate = .now
+                UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastCloudSyncTimestamp")
+                syncError = nil
+            }
+        } else {
+            await MainActor.run { syncError = "Wiederherstellen fehlgeschlagen" }
+        }
+
+        await MainActor.run { isSyncing = false }
+    }
+
+    // MARK: - Periodic Sync (Multi-Device)
+
+    /// Startet einen Timer der alle 30s einen Pull macht (nur wenn App aktiv).
+    func startPeriodicSync() {
+        guard canSync else { return }
+        stopPeriodicSync()
+        periodicSyncTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { await self.pullFromCloud() }
+        }
+    }
+
+    /// Stoppt den periodischen Sync-Timer.
+    func stopPeriodicSync() {
+        periodicSyncTimer?.invalidate()
+        periodicSyncTimer = nil
+    }
+
+    /// Leichtgewichtiger Pull-Only Sync (für periodischen Refresh).
+    private func pullFromCloud() async {
+        guard canSync, !isSyncing else { return }
+
+        if let result = await CallSyncService.shared.pullCalls() {
+            await MainActor.run {
+                mergeCalls(from: result.calls, deletedIds: Set(result.deletedCallIds))
+                teamCalls = result.teamCalls
+                lastSyncDate = .now
+                UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastCloudSyncTimestamp")
+            }
+        }
+    }
+
+    // MARK: - Team Pledges
+
+    /// Sendet einen Pledge für einen Team-Call an den Server.
+    func pushTeamPledge(callId: UUID, pledges: [TroopPledge], deletedPledgeIds: [UUID] = []) {
+        guard canSync else { return }
+        Task {
+            let success = await CallSyncService.shared.pushTeamPledges(
+                callId: callId,
+                pledges: pledges,
+                deletedPledgeIds: deletedPledgeIds
+            )
+            if success {
+                // Pull um aktuellen Stand zu bekommen
+                await pullFromCloud()
+            }
+        }
+    }
+
+    // MARK: - Merge Logic
+
+    /// Merge: Cloud-Calls in lokale Liste integrieren.
+    /// - Pledges werden additiv gemergt (Union by UUID)
+    /// - Gelöschte Calls werden lokal entfernt
+    /// - Discord-Message-ID Dedup verhindert Duplikate
+    private func mergeCalls(from cloudCalls: [CallItem], deletedIds: Set<UUID> = []) {
+        var localMap: [UUID: CallItem] = [:]
+        for c in calls { localMap[c.id] = c }
+
+        // Discord-Message-ID Map für Dedup
+        var discordIdMap: [String: UUID] = [:]
+        for c in calls {
+            if let dmId = c.discordMessageId { discordIdMap[dmId] = c.id }
+        }
+
+        var merged: [CallItem] = []
+
+        // 1. Lokale Calls verarbeiten
+        for local in calls {
+            // Auf einem anderen Gerät gelöscht?
+            if deletedIds.contains(local.id) {
+                continue
+            }
+
+            if let cloud = cloudCalls.first(where: { $0.id == local.id }) {
+                // Beide vorhanden: Call-Felder per LWW, Pledges additiv mergen
+                var winner = cloud.updatedAt > local.updatedAt ? cloud : local
+                winner.pledges = mergePledges(local: local.pledges, cloud: cloud.pledges)
+                // Transiente Daten vom lokalen Call behalten
+                winner.deletedPledgeIds = local.deletedPledgeIds
+                merged.append(winner)
+            } else {
+                // Nur lokal vorhanden: behalten
+                merged.append(local)
+            }
+        }
+
+        // 2. Cloud-Only Calls hinzufügen
+        for cloud in cloudCalls {
+            guard localMap[cloud.id] == nil else { continue }
+            guard !deletedIds.contains(cloud.id) else { continue }
+
+            // Discord-Message-ID Dedup: keinen Duplikat hinzufügen
+            if let dmId = cloud.discordMessageId, discordIdMap[dmId] != nil {
+                continue
+            }
+
+            merged.insert(cloud, at: 0)
+        }
+
+        calls = merged
+    }
+
+    /// Pledges additiv mergen: Union by UUID, Cloud gewinnt bei gleichem ID.
+    private func mergePledges(local: [TroopPledge], cloud: [TroopPledge]) -> [TroopPledge] {
+        var map: [UUID: TroopPledge] = [:]
+        for p in local { map[p.id] = p }
+        for p in cloud { map[p.id] = p }  // Cloud überschreibt bei gleicher ID
+        return Array(map.values).sorted { $0.pledgedAt < $1.pledgedAt }
+    }
+
+    // MARK: - Backup
 
     func restoreCallsBackupIfAvailable() {
         guard let data = UserDefaults.standard.data(forKey: callsCorruptBackupKey) else { return }

@@ -26,7 +26,7 @@ final class PushService {
 
     // MARK: - Register
 
-    /// Registriert den Device-Token bei Supabase.
+    /// Registriert den Device-Token bei Supabase. Inkludiert user_id wenn eingeloggt.
     func registerDeviceToken(_ token: String? = nil) async -> Bool {
         let tokenToSend = token ?? storedToken ?? ""
         guard !tokenToSend.isEmpty else {
@@ -34,31 +34,34 @@ final class PushService {
             return false
         }
 
-        let supabaseURL = UserDefaults.standard.string(forKey: "supabaseProjectURL") ?? ""
-        let supabaseKey = UserDefaults.standard.string(forKey: "supabaseAnonKey") ?? ""
-
-        guard !supabaseURL.isEmpty, !supabaseKey.isEmpty else {
-            print("[PushService] Supabase nicht konfiguriert")
-            return false
-        }
-
-        guard let url = URL(string: "\(supabaseURL)/functions/v1/register-device") else {
+        guard let url = URL(string: "\(AuthService.supabaseURL)/functions/v1/register-device") else {
             print("[PushService] Ungültige URL")
             return false
         }
 
         let playerName = UserDefaults.standard.string(forKey: "accountName") ?? "Unknown"
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "token": tokenToSend,
             "player_name": playerName,
             "platform": "ios"
         ]
+
+        // user_id mitsenden wenn eingeloggt
+        if let userId = AuthService.shared.userId {
+            body["user_id"] = userId
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Auth-Header: JWT wenn eingeloggt, sonst Anon Key
+        if let accessToken = await AuthService.shared.validAccessToken() {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        } else {
+            request.setValue("Bearer \(AuthService.supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        }
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 

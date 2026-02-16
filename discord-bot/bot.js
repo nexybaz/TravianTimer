@@ -245,6 +245,7 @@ client.on(Events.MessageCreate, async (message) => {
     link,
     crop_limit: cropLimit,
     discord_message_id: message.id,
+    guild_id: message.guildId || null,
   };
 
   const result = await pushCall(callData);

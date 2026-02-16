@@ -9,6 +9,12 @@ struct CallItem: Identifiable, Hashable, Codable {
         case done
     }
 
+    // Explizite CodingKeys: deletedPledgeIds + isShared werden NICHT persistiert (transient)
+    enum CodingKeys: String, CodingKey {
+        case id, title, targetX, targetY, arrival, link, status, createdAt
+        case cropLimit, pledges, discordMessageId, updatedAt, guildId
+    }
+
     var id: UUID = UUID()
     var title: String
     var targetX: Int
@@ -27,7 +33,19 @@ struct CallItem: Identifiable, Hashable, Codable {
     /// Discord Message ID für Deduplizierung (optional, nur bei Remote-Push)
     var discordMessageId: String?
 
-    // Custom Decoder: bestehende Calls ohne pledges/cropLimit fehlerfrei laden
+    /// Zeitstempel der letzten Änderung (für Cloud-Sync Konfliktauflösung)
+    var updatedAt: Date = .now
+
+    /// Discord Guild ID für Team-Zuordnung (optional)
+    var guildId: String?
+
+    /// Pledge-IDs die lokal gelöscht wurden (transient, nur für nächsten Push)
+    var deletedPledgeIds: [UUID] = []
+
+    /// Team-Call: gehört einem anderen User, wird nicht lokal persistiert (transient)
+    var isShared: Bool = false
+
+    // Custom Decoder: bestehende Calls ohne pledges/cropLimit/updatedAt fehlerfrei laden
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id          = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
@@ -41,6 +59,9 @@ struct CallItem: Identifiable, Hashable, Codable {
         cropLimit   = try c.decodeIfPresent(Int.self, forKey: .cropLimit)
         pledges     = try c.decodeIfPresent([TroopPledge].self, forKey: .pledges) ?? []
         discordMessageId = try c.decodeIfPresent(String.self, forKey: .discordMessageId)
+        updatedAt   = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+        guildId     = try c.decodeIfPresent(String.self, forKey: .guildId)
+        // deletedPledgeIds + isShared sind transient — nicht decodiert
     }
 
     init(
@@ -54,7 +75,10 @@ struct CallItem: Identifiable, Hashable, Codable {
         createdAt: Date = .now,
         cropLimit: Int? = nil,
         pledges: [TroopPledge] = [],
-        discordMessageId: String? = nil
+        discordMessageId: String? = nil,
+        updatedAt: Date = .now,
+        guildId: String? = nil,
+        isShared: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -67,11 +91,35 @@ struct CallItem: Identifiable, Hashable, Codable {
         self.cropLimit = cropLimit
         self.pledges = pledges
         self.discordMessageId = discordMessageId
+        self.updatedAt = updatedAt
+        self.guildId = guildId
+        self.isShared = isShared
+    }
+
+    // Hashable: deletedPledgeIds + isShared ignorieren (transient)
+    static func == (lhs: CallItem, rhs: CallItem) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.title == rhs.title &&
+        lhs.targetX == rhs.targetX &&
+        lhs.targetY == rhs.targetY &&
+        lhs.arrival == rhs.arrival &&
+        lhs.link == rhs.link &&
+        lhs.status == rhs.status &&
+        lhs.createdAt == rhs.createdAt &&
+        lhs.cropLimit == rhs.cropLimit &&
+        lhs.pledges == rhs.pledges &&
+        lhs.discordMessageId == rhs.discordMessageId &&
+        lhs.updatedAt == rhs.updatedAt &&
+        lhs.guildId == rhs.guildId
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 
 struct CallsPayload: Codable {
-    var version: Int = 2
+    var version: Int = 3
     var savedAt: Date = .now
     var calls: [CallItem]
 }

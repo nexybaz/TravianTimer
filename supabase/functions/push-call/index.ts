@@ -126,6 +126,7 @@ serve(async (req) => {
       link,
       crop_limit,
       discord_message_id,
+      guild_id,
     } = await req.json();
 
     // Validierung
@@ -165,6 +166,7 @@ serve(async (req) => {
       link: link || null,
       crop_limit: crop_limit || null,
       discord_message_id: discord_message_id || null,
+      guild_id: guild_id || null,
     };
 
     const { error: insertError } = await supabase.from("calls").insert(callData);
@@ -180,17 +182,43 @@ serve(async (req) => {
       }
     }
 
-    // Alle Device-Tokens holen
-    const { data: devices, error: devicesError } = await supabase
-      .from("device_tokens")
-      .select("token");
+    // Device-Tokens holen (Team-scoped wenn guild_id vorhanden)
+    let devices: { token: string }[] = [];
 
-    if (devicesError || !devices || devices.length === 0) {
-      console.log("No devices registered");
-      return new Response(
-        JSON.stringify({ success: true, pushed: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (guild_id) {
+      // Team-Members für diese Guild holen
+      const { data: members } = await supabase
+        .from("team_members")
+        .select("user_id")
+        .eq("guild_id", guild_id);
+
+      const memberUserIds = (members || []).map((m: any) => m.user_id);
+
+      if (memberUserIds.length > 0) {
+        // Nur Devices dieser Team-Members
+        const { data: teamDevices } = await supabase
+          .from("device_tokens")
+          .select("token")
+          .in("user_id", memberUserIds);
+        devices = teamDevices || [];
+        console.log(`Team-scoped push: ${devices.length} devices for guild ${guild_id}`);
+      }
+    }
+
+    // Fallback: Wenn keine Team-Devices oder keine guild_id → alle Devices
+    if (devices.length === 0) {
+      const { data: allDevices, error: devicesError } = await supabase
+        .from("device_tokens")
+        .select("token");
+
+      if (devicesError || !allDevices || allDevices.length === 0) {
+        console.log("No devices registered");
+        return new Response(
+          JSON.stringify({ success: true, pushed: 0 }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      devices = allDevices;
     }
 
     // APNs Payload bauen
@@ -211,6 +239,7 @@ serve(async (req) => {
         link: link || null,
         cropLimit: crop_limit || null,
         discordMessageId: discord_message_id || null,
+        guildId: guild_id || null,
       },
     };
 

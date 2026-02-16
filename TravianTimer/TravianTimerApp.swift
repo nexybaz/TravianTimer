@@ -11,8 +11,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
 
-        // Remote Push registrieren
-        UIApplication.shared.registerForRemoteNotifications()
+        // Push-Berechtigung anfragen, dann Remote Push registrieren
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            if let error {
+                print("[APNs] Berechtigung Fehler: \(error.localizedDescription)")
+            }
+            if granted {
+                DispatchQueue.main.async {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
+            } else {
+                print("[APNs] Berechtigung abgelehnt")
+            }
+        }
 
         return true
     }
@@ -101,11 +112,34 @@ struct TravianTimerApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var callsStore = CallsStore()
+    @StateObject private var authService = AuthService.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(callsStore)
+            Group {
+                if authService.isAuthenticated {
+                    ContentView()
+                        .environmentObject(callsStore)
+                } else {
+                    AuthView()
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                switch newPhase {
+                case .active:
+                    // Session refreshen wenn App in den Vordergrund kommt
+                    Task { await AuthService.shared.validAccessToken() }
+                    if AuthService.shared.isAuthenticated {
+                        Task { await callsStore.syncWithCloud() }
+                        callsStore.startPeriodicSync()
+                    }
+                case .inactive, .background:
+                    callsStore.stopPeriodicSync()
+                @unknown default:
+                    break
+                }
+            }
         }
     }
 }

@@ -10,4 +10,7 @@ struct TroopPledge: Identifiable, Codable, Hashable {
     var troopKind: String           // TroopKind.rawValue
     var count: Int
     var pledgedAt: Date = .now
+
+    /// User-ID des Pledgers (für Team-Pledges, optional bei eigenen Pledges)
+    var userId: String?
 }

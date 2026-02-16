@@ -27,9 +27,7 @@ struct SettingsView: View {
 
     @AppStorage("selectedTribe") private var selectedTribeRaw: String = Tribe.gauls.rawValue
 
-    // Push / Supabase
-    @AppStorage("supabaseProjectURL") private var supabaseURL: String = ""
-    @AppStorage("supabaseAnonKey") private var supabaseAnonKey: String = ""
+    @ObservedObject private var auth = AuthService.shared
 
     @StateObject private var profile = ProfileStore.shared
 
@@ -44,8 +42,7 @@ struct SettingsView: View {
     @State private var showConfirmResetCalls: Bool = false
     @State private var showTroopUpdate: Bool = false
 
-    @State private var pushRegistering: Bool = false
-    @State private var pushStatusMessage: String? = nil
+    @State private var showConfirmRestore: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -107,64 +104,39 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Push-Benachrichtigungen") {
-                    HStack {
-                        Text("Supabase URL")
-                        Spacer()
-                        TextField("https://xyz.supabase.co", text: $supabaseURL)
-                            .multilineTextAlignment(.trailing)
-                            .foregroundStyle(.primary)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.URL)
-                    }
-
-                    HStack {
-                        Text("Anon Key")
-                        Spacer()
-                        SecureField("eyJhbGci...", text: $supabaseAnonKey)
-                            .multilineTextAlignment(.trailing)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    }
-
-                    Button {
-                        registerPushDevice()
-                    } label: {
+                Section("Account") {
+                    if auth.isAuthenticated {
                         HStack {
-                            if pushRegistering {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
-                            Text("Gerät registrieren")
-                        }
-                    }
-                    .disabled(supabaseURL.isEmpty || supabaseAnonKey.isEmpty || pushRegistering)
-
-                    HStack(spacing: 8) {
-                        Image(systemName: PushService.shared.isRegistered ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(PushService.shared.isRegistered ? .green : .secondary)
-                        Text(PushService.shared.isRegistered ? "Registriert" : "Nicht registriert")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let msg = pushStatusMessage {
-                        Text(msg)
-                            .font(.footnote)
-                            .foregroundStyle(msg.contains("Fehler") ? .red : .green)
-                    }
-
-                    if let token = PushService.shared.storedToken {
-                        HStack {
-                            Text("Device Token")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                            Text("E-Mail")
                             Spacer()
-                            Text(String(token.prefix(8)) + "...")
-                                .font(.caption2)
-                                .monospaced()
+                            Text(auth.userEmail ?? "")
                                 .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 8) {
+                            if PushService.shared.isRegistered {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                Text("Push aktiv")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else if PushService.shared.storedToken == nil {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundStyle(.orange)
+                                Text("Push nicht verfügbar (Simulator)")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                                Text("Push nicht aktiv")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Button("Abmelden", role: .destructive) {
+                            auth.logout()
                         }
                     }
                 }
@@ -266,6 +238,50 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Cloud") {
+                    if store.canSync {
+                        HStack {
+                            Text("Letzter Sync")
+                            Spacer()
+                            if let date = store.lastSyncDate {
+                                Text(date.formatted(date: .abbreviated, time: .shortened))
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Nie")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Button {
+                            Task { await store.syncWithCloud() }
+                        } label: {
+                            HStack {
+                                if store.isSyncing {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                                Text("Jetzt synchronisieren")
+                            }
+                        }
+                        .disabled(store.isSyncing)
+
+                        Button("Aus Cloud wiederherstellen") {
+                            showConfirmRestore = true
+                        }
+                        .foregroundStyle(.blue)
+
+                        if let err = store.syncError {
+                            Text(err)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
+                    } else {
+                        Text("Melde dich an, um Cloud-Sync zu aktivieren.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 Section("Daten") {
                     Button("Startdörfer zurücksetzen") {
                         showConfirmResetVillages = true
@@ -305,6 +321,15 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("Alle offenen und vergangenen Calls werden gelöscht.")
+            }
+            .alert("Aus Cloud wiederherstellen?",
+                   isPresented: $showConfirmRestore) {
+                Button("Abbrechen", role: .cancel) {}
+                Button("Wiederherstellen") {
+                    Task { await store.restoreFromCloud() }
+                }
+            } message: {
+                Text("Lokale Calls werden durch die Cloud-Version ersetzt.")
             }
             .task {
                 if worlds.isEmpty {
@@ -364,21 +389,6 @@ struct SettingsView: View {
         if m == 2.0 { return "2.0\u{00D7}" }
         if m == 3.0 { return "3.0\u{00D7}" }
         return "1.0\u{00D7}"
-    }
-
-    private func registerPushDevice() {
-        pushRegistering = true
-        pushStatusMessage = nil
-
-        Task {
-            let success = await PushService.shared.registerDeviceToken()
-            await MainActor.run {
-                pushRegistering = false
-                pushStatusMessage = success
-                    ? "Erfolgreich registriert!"
-                    : "Fehler bei der Registrierung."
-            }
-        }
     }
 
     private func fetchWorlds() async {

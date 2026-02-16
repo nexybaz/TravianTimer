@@ -63,6 +63,11 @@ struct CallDetailView: View {
                         .padding(.horizontal)
                 }
 
+                // Team-Pledges Übersicht (nur bei shared Team-Calls)
+                if call.isShared {
+                    teamPledgesOverview
+                }
+
                 List(cachedResults) { row in
                     let isHidden = hiddenRowKeys.contains(rowKey(row))
 
@@ -447,19 +452,30 @@ struct CallDetailView: View {
         return count > 0 ? count : nil
     }
 
-    /// Bereits zugesicherte Menge für dieses Dorf+Truppentyp im aktuellen Call
+    /// Findet den aktuellen Call (eigene oder Team-Calls)
+    private var currentCall: CallItem? {
+        store.calls.first(where: { $0.id == call.id })
+        ?? store.teamCalls.first(where: { $0.id == call.id })
+    }
+
+    /// Bereits zugesicherte Menge für dieses Dorf+Truppentyp im aktuellen Call (nur eigene Pledges bei Team-Calls)
     private func existingPledgeCount(for row: OptionRow) -> Int {
-        guard let idx = store.calls.firstIndex(where: { $0.id == call.id }) else { return 0 }
-        let currentCall = store.calls[idx]
+        guard let currentCall else { return 0 }
+        let myUserId = AuthService.shared.userId
         return currentCall.pledges
-            .filter { $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue }
+            .filter { pledge in
+                // Bei Team-Calls nur eigene Pledges zählen
+                if call.isShared, let myId = myUserId {
+                    return pledge.userId == myId && pledge.villageName == row.start.name && pledge.troopKind == row.troop.rawValue
+                }
+                return pledge.villageName == row.start.name && pledge.troopKind == row.troop.rawValue
+            }
             .reduce(0) { $0 + $1.count }
     }
 
     /// Bereits zugesichertes Getreide/h über alle Pledges im Call (ohne den aktuellen Row-Typ/Dorf)
     private func usedCropExcluding(row: OptionRow) -> Int {
-        guard let idx = store.calls.firstIndex(where: { $0.id == call.id }) else { return 0 }
-        let currentCall = store.calls[idx]
+        guard let currentCall else { return 0 }
         return currentCall.pledges
             .filter { !($0.villageName == row.start.name && $0.troopKind == row.troop.rawValue) }
             .compactMap { pledge -> Int? in
@@ -478,8 +494,7 @@ struct CallDetailView: View {
     }
 
     private func cropBudget(for row: OptionRow) -> CropBudget? {
-        guard let idx = store.calls.firstIndex(where: { $0.id == call.id }),
-              let limit = store.calls[idx].cropLimit else { return nil }
+        guard let currentCall, let limit = currentCall.cropLimit else { return nil }
         let used = usedCropExcluding(row: row)
         let remaining = max(0, limit - used)
         let cropPerUnit = row.troop.cropPerHour
@@ -679,7 +694,22 @@ struct CallDetailView: View {
     }
 
     private func savePledge(for row: OptionRow, count: Int) {
+        if call.isShared {
+            saveTeamPledge(for: row, count: count)
+        } else {
+            saveOwnPledge(for: row, count: count)
+        }
+    }
+
+    /// Pledge auf eigenem Call speichern (lokal + Cloud-Sync via debounce)
+    private func saveOwnPledge(for row: OptionRow, count: Int) {
         guard let idx = store.calls.firstIndex(where: { $0.id == call.id }) else { return }
+
+        // IDs der entfernten Pledges für Cloud-Sync merken
+        let removedIds = store.calls[idx].pledges
+            .filter { $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue }
+            .map(\.id)
+        store.calls[idx].deletedPledgeIds.append(contentsOf: removedIds)
 
         // Bestehende Pledges für dieses Dorf+Truppentyp entfernen
         store.calls[idx].pledges.removeAll {
@@ -695,10 +725,114 @@ struct CallDetailView: View {
                 villageX: village?.x ?? row.start.x,
                 villageY: village?.y ?? row.start.y,
                 troopKind: row.troop.rawValue,
-                count: count
+                count: count,
+                userId: AuthService.shared.userId
             )
             store.calls[idx].pledges.append(pledge)
         }
+
+        // Timestamp aktualisieren für Cloud-Sync Konflikterkennung
+        store.calls[idx].updatedAt = .now
+
+        showToast(count > 0 ? "\(count)× \(row.troop.uiName) zugesichert" : "Zusicherung entfernt")
+    }
+
+    // MARK: - Team Pledges Overview
+
+    @ViewBuilder
+    private var teamPledgesOverview: some View {
+        let pledges = currentCall?.pledges ?? []
+        let myUserId = AuthService.shared.userId
+
+        if !pledges.isEmpty {
+            // Gruppiere nach playerName
+            let grouped = Dictionary(grouping: pledges) { $0.playerName }
+            let sortedPlayers = grouped.keys.sorted()
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "person.3.fill")
+                        .font(.caption2)
+                    Text("Team-Pledges")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(.blue)
+
+                ForEach(sortedPlayers, id: \.self) { player in
+                    let playerPledges = grouped[player] ?? []
+                    let isMe = playerPledges.first?.userId == myUserId
+
+                    HStack(spacing: 6) {
+                        Image(systemName: isMe ? "person.fill" : "person")
+                            .font(.caption2)
+                            .foregroundStyle(isMe ? .orange : .secondary)
+
+                        Text(isMe ? "Ich" : player)
+                            .font(.caption)
+                            .fontWeight(isMe ? .semibold : .regular)
+                            .foregroundStyle(isMe ? .primary : .secondary)
+
+                        Spacer()
+
+                        ForEach(playerPledges, id: \.id) { pledge in
+                            if let kind = TroopKind(rawValue: pledge.troopKind) {
+                                HStack(spacing: 2) {
+                                    Text("\(pledge.count)×")
+                                        .font(.caption2)
+                                    Text(kind.uiName)
+                                        .font(.caption2)
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(isMe ? Color.orange.opacity(0.15) : Color(.systemGray5))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal)
+        }
+    }
+
+    /// Pledge auf Team-Call speichern (direkt an Server senden)
+    private func saveTeamPledge(for row: OptionRow, count: Int) {
+        guard let teamIdx = store.teamCalls.firstIndex(where: { $0.id == call.id }) else { return }
+        let myUserId = AuthService.shared.userId
+
+        // Eigene bestehende Pledges für dieses Dorf+Truppentyp finden
+        let removedIds = store.teamCalls[teamIdx].pledges
+            .filter { $0.userId == myUserId && $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue }
+            .map(\.id)
+
+        var newPledges: [TroopPledge] = []
+        if count > 0 {
+            let village = ProfileStore.shared.villages.first(where: { $0.name == row.start.name })
+            let pledge = TroopPledge(
+                playerName: ProfileStore.shared.villages.first?.name.isEmpty == false ? "Ich" : "Ich",
+                villageName: row.start.name,
+                villageX: village?.x ?? row.start.x,
+                villageY: village?.y ?? row.start.y,
+                troopKind: row.troop.rawValue,
+                count: count,
+                userId: myUserId
+            )
+            newPledges.append(pledge)
+        }
+
+        // Direkt an Server senden
+        store.pushTeamPledge(callId: call.id, pledges: newPledges, deletedPledgeIds: removedIds)
+
+        // Lokales Update für sofortiges UI-Feedback
+        store.teamCalls[teamIdx].pledges.removeAll {
+            $0.userId == myUserId && $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue
+        }
+        store.teamCalls[teamIdx].pledges.append(contentsOf: newPledges)
 
         showToast(count > 0 ? "\(count)× \(row.troop.uiName) zugesichert" : "Zusicherung entfernt")
     }
