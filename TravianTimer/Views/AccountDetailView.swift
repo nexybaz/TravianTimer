@@ -305,8 +305,8 @@ struct AccountDetailView: View {
 
     @ViewBuilder
     private func travianSection(for userProfile: UserProfile) -> some View {
-        Section("Travian") {
-            if userProfile.isVerified {
+        if userProfile.isVerified {
+            Section {
                 if let worldId = userProfile.worldId, !worldId.isEmpty {
                     LabeledContent("Spielwelt", value: worldId.uppercased())
                 }
@@ -315,56 +315,65 @@ struct AccountDetailView: View {
                     LabeledContent("Kingdom", value: tag)
                 }
 
-                // Treue-Stufe (Kingdom-gebunden)
-                Stepper(value: Binding(
-                    get: { authService.profile?.fealtyLevel ?? 0 },
-                    set: { newValue in
-                        Task { await updateFealty(level: newValue) }
-                    }
-                ), in: 0...20) {
-                    HStack {
-                        Label("Treue-Stufe", systemImage: "star.fill")
-                        Spacer()
-                        Text("\(authService.profile?.fealtyLevel ?? 0)")
-                            .fontWeight(.semibold)
-                            .monospacedDigit()
-                    }
-                }
-
+                fealtyStepperView()
                 fealtyBonusView(fealty: userProfile.fealtyLevel, prestige: userProfile.prestigeLevel)
-
-                Button {
-                    Task { await refreshTravianData() }
-                } label: {
-                    HStack {
-                        if isRefreshing {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                        Label(
-                            isRefreshing ? "Aktualisiere..." : "Daten aktualisieren",
-                            systemImage: "arrow.clockwise"
-                        )
-                    }
-                }
-                .disabled(isRefreshing)
-
-                if let refreshMessage {
-                    Text(refreshMessage)
-                        .font(.caption)
-                        .foregroundStyle(refreshMessage.contains("Fehler") ? .red : .green)
-                }
-            } else {
+                refreshButton()
+            } header: {
+                Text("Travian")
+            } footer: {
+                Text("Treue-Stufe gilt für dein aktuelles Kingdom und wird im Gebäude-Tool auf Baukosten und Bauzeiten angewendet.")
+            }
+        } else {
+            Section("Travian") {
                 Button {
                     showVerifySheet = true
                 } label: {
                     Label("Travian-Account verknüpfen", systemImage: "link.badge.plus")
                 }
             }
-        } footer: {
-            if userProfile.isVerified {
-                Text("Treue-Stufe gilt für dein aktuelles Kingdom und wird im Gebäude-Tool auf Baukosten und Bauzeiten angewendet.")
+        }
+    }
+
+    @ViewBuilder
+    private func fealtyStepperView() -> some View {
+        Stepper(value: Binding(
+            get: { authService.profile?.fealtyLevel ?? 0 },
+            set: { newValue in
+                Task { await updateFealty(level: newValue) }
             }
+        ), in: 0...20) {
+            HStack {
+                Label("Treue-Stufe", systemImage: "star.fill")
+                Spacer()
+                Text("\(authService.profile?.fealtyLevel ?? 0)")
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func refreshButton() -> some View {
+        Button {
+            Task { await refreshTravianData() }
+        } label: {
+            HStack {
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Label(
+                    isRefreshing ? "Aktualisiere..." : "Daten aktualisieren",
+                    systemImage: "arrow.clockwise"
+                )
+            }
+        }
+        .disabled(isRefreshing)
+
+        if let refreshMessage {
+            Text(refreshMessage)
+                .font(.caption)
+                .foregroundStyle(refreshMessage.contains("Fehler") ? .red : .green)
         }
     }
 
