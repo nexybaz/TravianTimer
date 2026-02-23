@@ -321,7 +321,7 @@ struct AccountDetailView: View {
             } header: {
                 Text("Travian")
             } footer: {
-                Text("Treue-Stufe gilt für dein aktuelles Kingdom und wird im Gebäude-Tool auf Baukosten und Bauzeiten angewendet.")
+                Text("Lehnstreuestufe gilt für dein aktuelles Kingdom und wird im Gebäude-Tool auf Baukosten und Bauzeiten angewendet.")
             }
         } else {
             Section("Travian") {
@@ -343,7 +343,7 @@ struct AccountDetailView: View {
             }
         ), in: 0...20) {
             HStack {
-                Label("Treue-Stufe", systemImage: "star.fill")
+                Text("Lehnstreuestufe")
                 Spacer()
                 Text("\(authService.profile?.fealtyLevel ?? 0)")
                     .fontWeight(.semibold)
