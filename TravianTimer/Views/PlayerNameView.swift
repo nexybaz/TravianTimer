@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Supabase
 // MARK: - Player Name View (Onboarding fuer Apple Sign-In User)
 
 struct PlayerNameView: View {

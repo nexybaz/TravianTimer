@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Supabase
 // MARK: - Tools Tab
 
 struct ToolsTabView: View {

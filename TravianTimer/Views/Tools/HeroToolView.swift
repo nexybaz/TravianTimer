@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Supabase
 // MARK: - Held Tool
 
 struct HeroToolView: View {

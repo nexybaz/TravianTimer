@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Supabase
 // MARK: - Settings Tab
 
 struct SettingsView: View {
