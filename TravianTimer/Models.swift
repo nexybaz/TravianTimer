@@ -42,6 +42,9 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
     case gaulsChieftain = "gauls.chieftain"
     case gaulsSettler = "gauls.settler"
 
+    // MARK: Sonder-Typ (Discord-Meldungen ohne App-Pledge)
+    case discordPlayer = "discord.player"
+
     // Display name (in-game)
     var uiName: String {
         switch self {
@@ -80,22 +83,26 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
         case .gaulsTrebuchet: return "Katapult"
         case .gaulsChieftain: return "Stammesführer"
         case .gaulsSettler: return "Siedler"
+        case .discordPlayer: return "Discord Spieler"
         }
     }
 
     // MARK: - Off / Deff Klassifikation
 
-    /// Offensiv-Truppen (primär Angriffswerte). Belagerung, Anführer und Siedler zählen weder als Off noch Deff.
+    /// Offensiv-Truppen (primär Angriffswerte). Siedler zählen weder als Off noch Deff.
     var isOffensive: Bool {
         switch self {
         // Römer
-        case .romansImperian, .romansEquitesImperatoris, .romansEquitesCaesaris:
+        case .romansImperian, .romansEquitesImperatoris, .romansEquitesCaesaris,
+             .romansBatteringRam, .romansFireCatapult, .romansSenator:
             return true
         // Germanen
-        case .teutonsClubswinger, .teutonsAxefighter, .teutonsTeutonicKnight:
+        case .teutonsClubswinger, .teutonsAxefighter, .teutonsTeutonicKnight,
+             .teutonsRam, .teutonsCatapult, .teutonsChief:
             return true
         // Gallier
-        case .gaulsSwordsman, .gaulsTheutatesThunder, .gaulsHaeduan:
+        case .gaulsSwordsman, .gaulsTheutatesThunder, .gaulsHaeduan,
+             .gaulsRam, .gaulsTrebuchet, .gaulsChieftain:
             return true
         default:
             return false
@@ -106,7 +113,7 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
     var isDefensive: Bool {
         switch self {
         // Römer
-        case .romansLegionnaire, .romansPraetorian, .romansEquitesLegati:
+        case .romansLegionnaire, .romansPraetorian:
             return true
         // Germanen
         case .teutonsSpearfighter, .teutonsPaladin:
@@ -121,10 +128,11 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
 
     // MARK: - Volk & Kategorie (für Deff-Übersicht)
 
-    /// Volk-Prefix: "romans", "teutons" oder "gauls"
+    /// Volk-Prefix: "romans", "teutons", "gauls" oder "discord"
     var tribe: String {
         if rawValue.hasPrefix("romans.") { return "romans" }
         if rawValue.hasPrefix("teutons.") { return "teutons" }
+        if rawValue.hasPrefix("discord.") { return "discord" }
         return "gauls"
     }
 
@@ -133,6 +141,7 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
         switch tribe {
         case "romans":  return .blue
         case "teutons": return .orange
+        case "discord": return .purple
         default:        return .green
         }
     }
@@ -159,6 +168,9 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
         // Siedler
         case .romansSettler, .gaulsSettler, .teutonsSettler:
             return "house"
+        // Discord (manuelle Meldung)
+        case .discordPlayer:
+            return "bubble.left.fill"
         // Infanterie (default)
         default:
             return "shield.fill"
@@ -203,6 +215,9 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
         case .gaulsTrebuchet:            return 6
         case .gaulsChieftain:            return 4
         case .gaulsSettler:              return 1
+
+        // Discord-Spieler: count IST bereits der Crop-Wert (1:1)
+        case .discordPlayer:             return 1
         }
     }
 
@@ -244,6 +259,7 @@ enum TroopKind: String, Codable, CaseIterable, Hashable {
         case .gaulsTrebuchet: return 3
         case .gaulsChieftain: return 5
         case .gaulsSettler: return 5
+        case .discordPlayer: return 0
         }
     }
 

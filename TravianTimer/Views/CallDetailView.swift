@@ -6,8 +6,8 @@ import Combine
 struct CallDetailView: View {
 
     enum TimeSort: String, CaseIterable {
-        case early = "Früh"
-        case late = "Spät"
+        case early = "Frueh"
+        case late = "Spaet"
     }
 
     @EnvironmentObject private var store: CallsStore
@@ -27,23 +27,36 @@ struct CallDetailView: View {
     @State private var hiddenRowKeys: Set<String> = []
     @State private var expandedRowKey: String? = nil
     @State private var toastText: String? = nil
+    @State private var toastIsSuccess: Bool = false
 
     @State private var now: Date = .now
 
     // Pledge-Slider: Row-Key → aktueller Slider-Wert
     @State private var pledgeSliderValues: [String: Double] = [:]
 
-    // Cached: nur neu berechnen wenn sich now, timeSort oder hideLate ändert
+    // Pledge-Direkteingabe: Row-Key des aktiven Textfelds
+    @State private var pledgeEditingKey: String? = nil
+    @State private var pledgeEditText: String = ""
+
+    // Truppen-Import Sheet (wenn keine troopCounts vorhanden)
+    @State private var showTroopImport = false
+
+    // Cached: nur neu berechnen wenn sich now, timeSort oder hideLate aendert
     @State private var cachedResults: [OptionRow] = []
 
-    // Erinnerungen: Row-Key → gewählte Minuten
+    // Erinnerungen: Row-Key → gewaehlte Minuten
     @State private var reminderSetKeys: [String: Int] = [:]
 
-    // Erfolgsanimation für Erinnerung
+    // Erfolgsanimation fuer Erinnerung
     @State private var showReminderSuccess = false
     @State private var reminderSuccessText: String = ""
     @State private var reminderCheckScale: CGFloat = 0.3
     @State private var reminderCheckOpacity: Double = 0
+
+    /// Pledges fuer diesen Call aus dem Store
+    private var pledges: [TroopPledge] {
+        store.pledgesByCall[call.id] ?? []
+    }
 
     var body: some View {
         let firstId = cachedResults.first?.id
@@ -51,21 +64,26 @@ struct CallDetailView: View {
         ZStack {
             VStack(spacing: 10) {
 
-                Text("\(call.title)  (\(call.targetX)|\(call.targetY))  \u{2022}  Ankunft \(call.arrival.formatted(date: .numeric, time: .standard))")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-
                 if let toastText {
-                    Text(toastText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal)
-                }
-
-                // Team-Pledges Übersicht (nur bei shared Team-Calls)
-                if call.isShared {
-                    teamPledgesOverview
+                    HStack(spacing: 6) {
+                        if toastIsSuccess {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
+                        Text(toastText)
+                            .font(.caption)
+                            .foregroundStyle(toastIsSuccess ? .primary : .secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(toastIsSuccess
+                                  ? Color.green.opacity(0.1)
+                                  : Color(.secondarySystemGroupedBackground))
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
 
                 List(cachedResults) { row in
@@ -78,6 +96,12 @@ struct CallDetailView: View {
                                     Text("\(row.start.name)  \(row.troop.uiName)")
                                         .fontWeight(row.id == firstId ? .bold : .regular)
                                         .foregroundStyle(isHidden ? .secondary : .primary)
+
+                                    if existingPledgeCount(for: row) > 0 {
+                                        Image(systemName: "checkmark.shield.fill")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.green.opacity(0.6))
+                                    }
 
                                     if isHidden {
                                         Image(systemName: "eye.slash")
@@ -126,7 +150,7 @@ struct CallDetailView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             let key = rowKey(row)
-                            withAnimation {
+                            withAnimation(.easeOut(duration: 0.15)) {
                                 expandedRowKey = (expandedRowKey == key) ? nil : key
                             }
                         }
@@ -141,7 +165,7 @@ struct CallDetailView: View {
                                     }
                                 }
                                 .buttonStyle(.bordered)
-                                .disabled(call.link == nil)
+                                .disabled(call.linkURL == nil)
 
                                 if reminderSetKeys[rowKey(row)] != nil {
                                     Button(role: .destructive) {
@@ -194,7 +218,7 @@ struct CallDetailView: View {
                 reminderSuccessOverlay
             }
         }
-        .navigationTitle("Call")
+        .navigationTitle("\(call.title) (\(call.targetX)|\(call.targetY))")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -241,16 +265,22 @@ struct CallDetailView: View {
                 }
             }
         }
-        .onAppear {
+        .sheet(isPresented: $showTroopImport, onDismiss: {
+            // Nach Truppen-Import die Optionen neu berechnen
+            rebuildResults()
+        }) {
+            TroopUpdateView()
+        }
+        .task {
             now = .now
             if let key = initialExpandedRowKey {
                 expandedRowKey = key
             }
+            // Pledges fuer diesen Call laden
+            await store.loadPledges(callId: call.id)
             rebuildResults()
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { tick in
-            // Timer pausieren wenn eine Row expandiert ist,
-            // damit offene Menüs (Erinnerung) nicht geschlossen werden.
             guard expandedRowKey == nil else { return }
             now = tick
             rebuildResults()
@@ -259,7 +289,6 @@ struct CallDetailView: View {
         .onChange(of: hideLate) { _, _ in rebuildResults() }
         .onChange(of: hideHidden) { _, _ in rebuildResults() }
         .onChange(of: expandedRowKey) { old, new in
-            // Beim Zuklappen: Timer-State sofort aufholen
             if old != nil && new == nil {
                 now = .now
                 rebuildResults()
@@ -268,7 +297,7 @@ struct CallDetailView: View {
     }
 
     private func openTargetLink() {
-        guard let url = call.link else { return }
+        guard let url = call.linkURL else { return }
         openURL(url)
     }
 
@@ -281,7 +310,6 @@ struct CallDetailView: View {
                 hiddenRowKeys.insert(key)
                 expandedRowKey = nil
             }
-            // Bei hideHidden aktiv: sofort aus Liste entfernen
             if hideHidden {
                 rebuildResults()
             }
@@ -312,7 +340,7 @@ struct CallDetailView: View {
                 callId: call.id,
                 rowKey: rowKey(row),
                 row: row,
-                targetLink: call.link,
+                targetLink: call.linkURL,
                 leadMinutes: leadMinutes
             )
             if ok {
@@ -331,11 +359,16 @@ struct CallDetailView: View {
         }
     }
 
-    private func showToast(_ text: String) {
-        toastText = text
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+    private func showToast(_ text: String, success: Bool = false) {
+        withAnimation(.easeOut(duration: 0.15)) {
+            toastIsSuccess = success
+            toastText = text
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (success ? 1.8 : 2.0)) {
             if toastText == text {
-                toastText = nil
+                withAnimation(.easeOut(duration: 0.2)) {
+                    toastText = nil
+                }
             }
         }
     }
@@ -384,7 +417,6 @@ struct CallDetailView: View {
                 }
                 reminderCheckScale = 0.3
                 reminderCheckOpacity = 0
-                // Row zuklappen nach Animation
                 expandedRowKey = nil
             }
         }
@@ -424,8 +456,6 @@ struct CallDetailView: View {
             return ascending ? (missA < missB) : (missA > missB)
         }
 
-        // Nur updaten wenn sich IDs oder Reihenfolge geändert haben,
-        // damit offene Menüs nicht durch den Timer geschlossen werden.
         let newIds = sorted.map(\.id)
         let oldIds = cachedResults.map(\.id)
         if newIds != oldIds {
@@ -443,7 +473,7 @@ struct CallDetailView: View {
 
     // MARK: - Pledge Section
 
-    /// Verfügbare Truppen aus VillageProfile.troopCounts
+    /// Verfuegbare Truppen aus VillageProfile.troopCounts
     private func availableCount(for row: OptionRow) -> Int? {
         guard let village = ProfileStore.shared.villages.first(where: { $0.name == row.start.name }) else {
             return nil
@@ -452,31 +482,16 @@ struct CallDetailView: View {
         return count > 0 ? count : nil
     }
 
-    /// Findet den aktuellen Call (eigene oder Team-Calls)
-    private var currentCall: CallItem? {
-        store.calls.first(where: { $0.id == call.id })
-        ?? store.teamCalls.first(where: { $0.id == call.id })
-    }
-
-    /// Bereits zugesicherte Menge für dieses Dorf+Truppentyp im aktuellen Call (nur eigene Pledges bei Team-Calls)
+    /// Bereits zugesicherte Menge fuer dieses Dorf+Truppentyp im aktuellen Call
     private func existingPledgeCount(for row: OptionRow) -> Int {
-        guard let currentCall else { return 0 }
-        let myUserId = AuthService.shared.userId
-        return currentCall.pledges
-            .filter { pledge in
-                // Bei Team-Calls nur eigene Pledges zählen
-                if call.isShared, let myId = myUserId {
-                    return pledge.userId == myId && pledge.villageName == row.start.name && pledge.troopKind == row.troop.rawValue
-                }
-                return pledge.villageName == row.start.name && pledge.troopKind == row.troop.rawValue
-            }
+        pledges
+            .filter { $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue }
             .reduce(0) { $0 + $1.count }
     }
 
-    /// Bereits zugesichertes Getreide/h über alle Pledges im Call (ohne den aktuellen Row-Typ/Dorf)
+    /// Bereits zugesichertes Getreide/h ueber alle Pledges im Call (ohne den aktuellen Row-Typ/Dorf)
     private func usedCropExcluding(row: OptionRow) -> Int {
-        guard let currentCall else { return 0 }
-        return currentCall.pledges
+        pledges
             .filter { !($0.villageName == row.start.name && $0.troopKind == row.troop.rawValue) }
             .compactMap { pledge -> Int? in
                 guard let kind = TroopKind(rawValue: pledge.troopKind) else { return nil }
@@ -487,15 +502,20 @@ struct CallDetailView: View {
 
     /// Verbleibendes Crop-Budget und daraus abgeleitete max Einheiten (nil = keine Obergrenze)
     private struct CropBudget {
-        let limit: Int          // Definierte Obergrenze
-        let used: Int           // Bereits verbraucht (ohne aktuelle Row)
-        let remaining: Int      // Noch verfügbar
-        let maxUnits: Int       // Max Einheiten dieses Typs
+        let limit: Int
+        let used: Int
+        let remaining: Int
+        let maxUnits: Int
     }
 
     private func cropBudget(for row: OptionRow) -> CropBudget? {
-        guard let currentCall, let limit = currentCall.cropLimit else { return nil }
-        let used = usedCropExcluding(row: row)
+        guard let limit = call.cropLimit else { return nil }
+        let usedFromPledges = usedCropExcluding(row: row)
+        // DB-Wert (cropPledgedTotal) beruecksichtigen — wird auch durch manuelle Discord-Updates gesetzt.
+        // Fuer den "excluding" Vergleich: DB-Wert minus den Crop des aktuellen Rows.
+        let currentRowCrop = existingPledgeCount(for: row) * row.troop.cropPerHour
+        let usedFromDB = max(0, call.cropPledgedTotal - currentRowCrop)
+        let used = max(usedFromPledges, usedFromDB)
         let remaining = max(0, limit - used)
         let cropPerUnit = row.troop.cropPerHour
         let maxUnits = cropPerUnit > 0 ? remaining / cropPerUnit : Int.max
@@ -509,11 +529,9 @@ struct CallDetailView: View {
         if let maxCount = availableCount(for: row) {
             let existing = existingPledgeCount(for: row)
 
-            // Slider-Maximum: Minimum aus verfügbare Truppen und Crop-Obergrenze
             let budget = cropBudget(for: row)
             let effectiveMax = min(maxCount, budget?.maxUnits ?? maxCount)
 
-            // Crop-Verbrauch des aktuellen Slider-Wertes berechnen
             let sliderVal = effectiveMax > 0
                 ? Int(min(pledgeSliderValues[key] ?? Double(existing), Double(effectiveMax)))
                 : 0
@@ -536,17 +554,16 @@ struct CallDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Crop-Budget Anzeige: verbleibende Differenz zum Limit
                 if let budget {
                     let remainingAfterSlider = max(0, budget.remaining - sliderCrop)
                     HStack(spacing: 4) {
                         Image(systemName: "leaf.fill")
                             .font(.caption2)
                         if remainingAfterSlider > 0 {
-                            Text("Noch \(remainingAfterSlider)/h frei (Limit: \(budget.limit)/h)")
+                            Text("Noch \(remainingAfterSlider) Getreide/h frei (Limit: \(budget.limit) Getreide/h)")
                                 .font(.caption2)
                         } else {
-                            Text("Obergrenze erreicht (\(budget.limit)/h)")
+                            Text("Obergrenze erreicht (\(budget.limit) Getreide/h)")
                                 .font(.caption2)
                         }
                     }
@@ -558,7 +575,6 @@ struct CallDetailView: View {
                 HStack(spacing: 12) {
                     if effectiveMax > 0 {
                         if isCropLimited {
-                            // Custom Slider mit Geister-Balken
                             cropLimitedSlider(
                                 key: key,
                                 existing: existing,
@@ -566,18 +582,11 @@ struct CallDetailView: View {
                                 totalMax: maxCount
                             )
                         } else {
-                            Slider(
-                                value: Binding(
-                                    get: {
-                                        let val = pledgeSliderValues[key] ?? Double(existing)
-                                        return min(val, Double(effectiveMax))
-                                    },
-                                    set: { pledgeSliderValues[key] = min($0, Double(effectiveMax)) }
-                                ),
-                                in: 0...Double(effectiveMax),
-                                step: 1
+                            customSlider(
+                                key: key,
+                                existing: existing,
+                                maxVal: effectiveMax
                             )
-                            .tint(.orange)
                         }
                     } else {
                         Text("Obergrenze erreicht")
@@ -586,11 +595,49 @@ struct CallDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    Text("\(sliderVal)")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .monospacedDigit()
-                        .frame(minWidth: 40, alignment: .trailing)
+                    if pledgeEditingKey == key {
+                        // Direkteingabe-Modus: Textfeld mit Zahlentastatur
+                        TextField("0", text: $pledgeEditText)
+                            .keyboardType(.numberPad)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .monospacedDigit()
+                            .multilineTextAlignment(.trailing)
+                            .frame(minWidth: 52, maxWidth: 70)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color(.systemGray5))
+                            .cornerRadius(8)
+                            .onSubmit { commitPledgeEdit(key: key, maxVal: effectiveMax) }
+                            .onChange(of: pledgeEditText) {
+                                // Live-Sync: Slider folgt der Eingabe
+                                if let val = Int(pledgeEditText) {
+                                    let clamped = min(max(val, 0), effectiveMax)
+                                    pledgeSliderValues[key] = Double(clamped)
+                                }
+                            }
+                            .onAppear {
+                                // Focus nach kurzer Verzoegerung
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    pledgeEditText = sliderVal > 0 ? "\(sliderVal)" : ""
+                                }
+                            }
+                    } else {
+                        // Zahl antippen → Direkteingabe oeffnen
+                        Text("\(sliderVal)")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .monospacedDigit()
+                            .frame(minWidth: 40, alignment: .trailing)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color(.systemGray6).opacity(0.5))
+                            .cornerRadius(8)
+                            .onTapGesture {
+                                pledgeEditText = sliderVal > 0 ? "\(sliderVal)" : ""
+                                pledgeEditingKey = key
+                            }
+                    }
                 }
 
                 HStack {
@@ -603,7 +650,9 @@ struct CallDetailView: View {
                     Spacer()
 
                     Button {
-                        savePledge(for: row, count: sliderVal)
+                        Task {
+                            await savePledge(for: row, count: sliderVal)
+                        }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: existing > 0 ? "arrow.triangle.2.circlepath" : "checkmark.shield")
@@ -619,14 +668,89 @@ struct CallDetailView: View {
                 }
             }
             .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        } else {
+            // Keine troopCounts vorhanden — Hinweis zum Truppen-Import
+            Divider().padding(.vertical, 4)
+
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text("Importiere deine Truppen um hier pledgen zu koennen")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    showTroopImport = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.and.arrow.down.fill")
+                            .font(.caption)
+                        Text("Truppen importieren")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+            .padding(.vertical, 4)
         }
     }
 
-    // MARK: - Custom Slider mit Geister-Balken
+    // MARK: - Custom Sliders (eigene DragGesture → kein Back-Swipe-Konflikt)
 
-    /// Slider der zeigt, wie weit man ohne Crop-Limit hätte ziehen können.
-    /// Grauer Balken = volles Potenzial (verfügbare Truppen),
-    /// Oranger Balken + Thumb = durch Crop-Limit begrenzter Bereich.
+    /// Einfacher Custom Slider ohne Crop-Limit (ersetzt SwiftUI Slider).
+    /// Nutzt eigenen DragGesture(minimumDistance: 0) auf dem Thumb,
+    /// damit der NavigationStack Back-Swipe nicht versehentlich ausgeloest wird.
+    private func customSlider(key: String, existing: Int, maxVal: Int) -> some View {
+        GeometryReader { geo in
+            let trackHeight: CGFloat = 6
+            let thumbSize: CGFloat = 26
+            let usableWidth = geo.size.width - thumbSize
+
+            let currentVal = min(pledgeSliderValues[key] ?? Double(existing), Double(maxVal))
+            let valueRatio = maxVal > 0 ? CGFloat(currentVal) / CGFloat(maxVal) : 0
+            let thumbX = thumbSize / 2 + usableWidth * valueRatio
+
+            ZStack(alignment: .leading) {
+                // Track Hintergrund
+                RoundedRectangle(cornerRadius: trackHeight / 2)
+                    .fill(Color(.systemGray4))
+                    .frame(height: trackHeight)
+
+                // Gefuellter Bereich (orange)
+                RoundedRectangle(cornerRadius: trackHeight / 2)
+                    .fill(Color.orange)
+                    .frame(width: thumbX, height: trackHeight)
+
+                // Thumb
+                Circle()
+                    .fill(.white)
+                    .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                    .frame(width: thumbSize, height: thumbSize)
+                    .offset(x: thumbX - thumbSize / 2)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { drag in
+                                if pledgeEditingKey != nil { pledgeEditingKey = nil }
+                                let x = drag.location.x - thumbSize / 2
+                                let clamped = min(max(0, x), usableWidth)
+                                let ratio = usableWidth > 0 ? clamped / usableWidth : 0
+                                let newVal = Double(maxVal) * Double(ratio)
+                                pledgeSliderValues[key] = newVal.rounded()
+                            }
+                    )
+            }
+            .frame(height: thumbSize)
+        }
+        .frame(height: 26)
+    }
+
+    /// Custom Slider mit Geister-Balken fuer Crop-Limit.
     private func cropLimitedSlider(key: String, existing: Int, effectiveMax: Int, totalMax: Int) -> some View {
         GeometryReader { geo in
             let trackHeight: CGFloat = 6
@@ -649,28 +773,23 @@ struct CallDetailView: View {
             let thumbX = thumbSize / 2 + usableWidth * limitRatio * valueRatio
 
             ZStack(alignment: .leading) {
-                // Geister-Balken: volles Potenzial (verfügbare Truppen)
                 RoundedRectangle(cornerRadius: trackHeight / 2)
                     .fill(Color(.systemGray4))
                     .frame(height: trackHeight)
 
-                // Limitierter Bereich (wo der Slider hin darf)
                 RoundedRectangle(cornerRadius: trackHeight / 2)
                     .fill(Color.orange.opacity(0.25))
                     .frame(width: thumbSize / 2 + usableWidth * limitRatio, height: trackHeight)
 
-                // Aktiver Fortschritt
                 RoundedRectangle(cornerRadius: trackHeight / 2)
                     .fill(Color.orange)
                     .frame(width: thumbX, height: trackHeight)
 
-                // Limit-Markierung (vertikale Linie)
                 Rectangle()
                     .fill(Color.red.opacity(0.6))
                     .frame(width: 2, height: 16)
                     .offset(x: thumbSize / 2 + usableWidth * limitRatio - 1)
 
-                // Thumb
                 Circle()
                     .fill(.white)
                     .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
@@ -679,6 +798,7 @@ struct CallDetailView: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { drag in
+                                if pledgeEditingKey != nil { pledgeEditingKey = nil }
                                 let x = drag.location.x - thumbSize / 2
                                 let maxX = usableWidth * limitRatio
                                 let clamped = min(max(0, x), maxX)
@@ -693,147 +813,43 @@ struct CallDetailView: View {
         .frame(height: 26)
     }
 
-    private func savePledge(for row: OptionRow, count: Int) {
-        if call.isShared {
-            saveTeamPledge(for: row, count: count)
+    /// Schliesst die Direkteingabe und uebernimmt den Wert in den Slider
+    private func commitPledgeEdit(key: String, maxVal: Int) {
+        let parsed = Int(pledgeEditText) ?? 0
+        let clamped = Swift.min(Swift.max(parsed, 0), maxVal)
+        pledgeSliderValues[key] = Double(clamped)
+        pledgeEditingKey = nil
+    }
+
+    private func savePledge(for row: OptionRow, count: Int) async {
+        let village = ProfileStore.shared.villages.first(where: { $0.name == row.start.name })
+        let key = rowKey(row)
+
+        // Fehlertext vor dem Speichern merken
+        let errorBefore = store.errorText
+
+        await store.savePledge(
+            callId: call.id,
+            villageName: row.start.name,
+            villageX: village?.x ?? row.start.x,
+            villageY: village?.y ?? row.start.y,
+            troopKind: row.troop.rawValue,
+            count: count
+        )
+
+        // Slider-State und Direkteingabe zuruecksetzen
+        pledgeSliderValues.removeValue(forKey: key)
+        if pledgeEditingKey == key { pledgeEditingKey = nil }
+
+        // Erfolgsmeldung nur wenn kein neuer Fehler aufgetreten ist
+        let hadError = store.errorText != nil && store.errorText != errorBefore
+        if hadError {
+            showToast("Speichern fehlgeschlagen")
+        } else if count > 0 {
+            showToast("\(count)\u{00D7} \(row.troop.uiName) zugesichert", success: true)
         } else {
-            saveOwnPledge(for: row, count: count)
+            showToast("Zusicherung entfernt", success: true)
         }
-    }
-
-    /// Pledge auf eigenem Call speichern (lokal + Cloud-Sync via debounce)
-    private func saveOwnPledge(for row: OptionRow, count: Int) {
-        guard let idx = store.calls.firstIndex(where: { $0.id == call.id }) else { return }
-
-        // IDs der entfernten Pledges für Cloud-Sync merken
-        let removedIds = store.calls[idx].pledges
-            .filter { $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue }
-            .map(\.id)
-        store.calls[idx].deletedPledgeIds.append(contentsOf: removedIds)
-
-        // Bestehende Pledges für dieses Dorf+Truppentyp entfernen
-        store.calls[idx].pledges.removeAll {
-            $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue
-        }
-
-        // Neues Pledge nur hinzufügen wenn > 0
-        if count > 0 {
-            let village = ProfileStore.shared.villages.first(where: { $0.name == row.start.name })
-            let pledge = TroopPledge(
-                playerName: "Ich",
-                villageName: row.start.name,
-                villageX: village?.x ?? row.start.x,
-                villageY: village?.y ?? row.start.y,
-                troopKind: row.troop.rawValue,
-                count: count,
-                userId: AuthService.shared.userId
-            )
-            store.calls[idx].pledges.append(pledge)
-        }
-
-        // Timestamp aktualisieren für Cloud-Sync Konflikterkennung
-        store.calls[idx].updatedAt = .now
-
-        showToast(count > 0 ? "\(count)× \(row.troop.uiName) zugesichert" : "Zusicherung entfernt")
-    }
-
-    // MARK: - Team Pledges Overview
-
-    @ViewBuilder
-    private var teamPledgesOverview: some View {
-        let pledges = currentCall?.pledges ?? []
-        let myUserId = AuthService.shared.userId
-
-        if !pledges.isEmpty {
-            // Gruppiere nach playerName
-            let grouped = Dictionary(grouping: pledges) { $0.playerName }
-            let sortedPlayers = grouped.keys.sorted()
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 4) {
-                    Image(systemName: "person.3.fill")
-                        .font(.caption2)
-                    Text("Team-Pledges")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                }
-                .foregroundStyle(.blue)
-
-                ForEach(sortedPlayers, id: \.self) { player in
-                    let playerPledges = grouped[player] ?? []
-                    let isMe = playerPledges.first?.userId == myUserId
-
-                    HStack(spacing: 6) {
-                        Image(systemName: isMe ? "person.fill" : "person")
-                            .font(.caption2)
-                            .foregroundStyle(isMe ? .orange : .secondary)
-
-                        Text(isMe ? "Ich" : player)
-                            .font(.caption)
-                            .fontWeight(isMe ? .semibold : .regular)
-                            .foregroundStyle(isMe ? .primary : .secondary)
-
-                        Spacer()
-
-                        ForEach(playerPledges, id: \.id) { pledge in
-                            if let kind = TroopKind(rawValue: pledge.troopKind) {
-                                HStack(spacing: 2) {
-                                    Text("\(pledge.count)×")
-                                        .font(.caption2)
-                                    Text(kind.uiName)
-                                        .font(.caption2)
-                                }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(isMe ? Color.orange.opacity(0.15) : Color(.systemGray5))
-                                .clipShape(Capsule())
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-        }
-    }
-
-    /// Pledge auf Team-Call speichern (direkt an Server senden)
-    private func saveTeamPledge(for row: OptionRow, count: Int) {
-        guard let teamIdx = store.teamCalls.firstIndex(where: { $0.id == call.id }) else { return }
-        let myUserId = AuthService.shared.userId
-
-        // Eigene bestehende Pledges für dieses Dorf+Truppentyp finden
-        let removedIds = store.teamCalls[teamIdx].pledges
-            .filter { $0.userId == myUserId && $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue }
-            .map(\.id)
-
-        var newPledges: [TroopPledge] = []
-        if count > 0 {
-            let village = ProfileStore.shared.villages.first(where: { $0.name == row.start.name })
-            let pledge = TroopPledge(
-                playerName: ProfileStore.shared.villages.first?.name.isEmpty == false ? "Ich" : "Ich",
-                villageName: row.start.name,
-                villageX: village?.x ?? row.start.x,
-                villageY: village?.y ?? row.start.y,
-                troopKind: row.troop.rawValue,
-                count: count,
-                userId: myUserId
-            )
-            newPledges.append(pledge)
-        }
-
-        // Direkt an Server senden
-        store.pushTeamPledge(callId: call.id, pledges: newPledges, deletedPledgeIds: removedIds)
-
-        // Lokales Update für sofortiges UI-Feedback
-        store.teamCalls[teamIdx].pledges.removeAll {
-            $0.userId == myUserId && $0.villageName == row.start.name && $0.troopKind == row.troop.rawValue
-        }
-        store.teamCalls[teamIdx].pledges.append(contentsOf: newPledges)
-
-        showToast(count > 0 ? "\(count)× \(row.troop.uiName) zugesichert" : "Zusicherung entfernt")
     }
 }
+

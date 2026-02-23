@@ -12,7 +12,7 @@ struct VillageEditorView: View {
 
     @State private var draft: VillageProfile
 
-    @AppStorage("selectedTribe") private var selectedTribeRaw: String = SettingsView.Tribe.gauls.rawValue
+    @AppStorage("selectedTribe") private var selectedTribeRaw: String = Tribe.gauls.rawValue
 
     init(modeTitle: String, initial: VillageProfile, onSave: @escaping (VillageProfile) -> Void) {
         self.modeTitle = modeTitle

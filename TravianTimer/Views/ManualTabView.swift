@@ -1,11 +1,11 @@
 import SwiftUI
 
-// MARK: - Manual Tab
+// MARK: - Manual Fallback Form (eingebettet im Parser bei Fehler)
 
-struct ManualTabView: View {
+struct ManualCallForm: View {
 
     @EnvironmentObject private var store: CallsStore
-    @Binding var selection: ContentView.AppTab
+    let onCreated: () -> Void
 
     @State private var titleText: String = ""
     @State private var xText: String = "0"
@@ -24,70 +24,70 @@ struct ManualTabView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Call") {
-                    TextField("Dorfname", text: $titleText)
-                        .textInputAutocapitalization(.words)
-                        .focused($focusedField, equals: .title)
-                }
+        Form {
+            Section("Call") {
+                TextField("Dorfname", text: $titleText)
+                    .textInputAutocapitalization(.words)
+                    .focused($focusedField, equals: .title)
+            }
 
-                Section("Ziel") {
-                    TextField("X", text: $xText)
-                        .keyboardType(.numbersAndPunctuation)
-                        .focused($focusedField, equals: .x)
+            Section("Ziel") {
+                TextField("X", text: $xText)
+                    .keyboardType(.numbersAndPunctuation)
+                    .focused($focusedField, equals: .x)
 
-                    TextField("Y", text: $yText)
-                        .keyboardType(.numbersAndPunctuation)
-                        .focused($focusedField, equals: .y)
-                }
+                TextField("Y", text: $yText)
+                    .keyboardType(.numbersAndPunctuation)
+                    .focused($focusedField, equals: .y)
+            }
 
-                Section("Ankunft") {
-                    DatePicker("Zeit", selection: $arrival, displayedComponents: [.date, .hourAndMinute])
-                }
+            Section("Ankunft") {
+                DatePicker("Zeit", selection: $arrival, displayedComponents: [.date, .hourAndMinute])
+            }
 
-                Section("Link") {
-                    TextField("Optional: Travian Link", text: $urlText)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .focused($focusedField, equals: .url)
+            Section("Link") {
+                TextField("Optional: Travian Link", text: $urlText)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .focused($focusedField, equals: .url)
 
-                    Text("Wenn du einen Link einfügst, kannst du ihn später im Call öffnen.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Wenn du einen Link einfügst, kannst du ihn später im Call öffnen.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
-                if let inlineError {
-                    Section {
-                        Text(inlineError)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
-                if let err = store.errorText {
-                    Section {
-                        Text(err)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
-
+            if let inlineError {
                 Section {
-                    Button("Erstellen") {
-                        focusedField = nil
-                        inlineError = nil
+                    Text(inlineError)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
+            if let err = store.errorText {
+                Section {
+                    Text(err)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            }
 
-                        guard let x = parseIntStrict(xText) else {
-                            inlineError = "X ist ungültig."
-                            return
-                        }
-                        guard let y = parseIntStrict(yText) else {
-                            inlineError = "Y ist ungültig."
-                            return
-                        }
+            Section {
+                Button("Erstellen") {
+                    focusedField = nil
+                    inlineError = nil
 
-                        store.createCallManual(
+                    guard let x = parseIntStrict(xText) else {
+                        inlineError = "X ist ungültig."
+                        return
+                    }
+                    guard let y = parseIntStrict(yText) else {
+                        inlineError = "Y ist ungültig."
+                        return
+                    }
+
+                    Task {
+                        await store.createCallManual(
                             title: titleText,
                             targetX: x,
                             targetY: y,
@@ -96,13 +96,12 @@ struct ManualTabView: View {
                         )
 
                         if store.errorText == nil {
-                            selection = .calls
+                            onCreated()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
                 }
+                .buttonStyle(.borderedProminent)
             }
-            .navigationTitle("Manuell")
         }
     }
 

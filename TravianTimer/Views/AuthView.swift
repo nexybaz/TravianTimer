@@ -1,451 +1,529 @@
 import SwiftUI
 import AuthenticationServices
 
-// MARK: - Auth View (Login / Register / Password Reset)
+// MARK: - Auth View
 
 struct AuthView: View {
 
-    @ObservedObject private var auth = AuthService.shared
+    @EnvironmentObject private var authService: AuthService
 
     enum Mode {
         case signIn
         case signUp
-        case resetRequest      // E-Mail eingeben für Reset
-        case resetConfirm      // Code + neues Passwort eingeben
+        case resetPassword
+    }
+
+    enum Field: Hashable {
+        case playerName, email, password, passwordConfirm
     }
 
     @State private var mode: Mode = .signIn
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var passwordConfirm: String = ""
-    @State private var resetCode: String = ""
-    @State private var newPassword: String = ""
-    @State private var newPasswordConfirm: String = ""
-    @State private var isLoading: Bool = false
-    @State private var errorMessage: String? = nil
+    @State private var playerName: String = ""
     @State private var successMessage: String? = nil
 
+    // Validation state (shown after field loses focus)
+    @State private var showEmailError: Bool = false
+    @State private var showPasswordError: Bool = false
+    @State private var showConfirmError: Bool = false
+    @State private var showNameError: Bool = false
+
+    // Haptic triggers
+    @State private var hapticSuccess: Bool = false
+    @State private var hapticError: Bool = false
+
+    @FocusState private var focusedField: Field?
     @Environment(\.colorScheme) private var colorScheme
+
+    // MARK: - Body
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 24) {
 
-                Spacer()
+                    Spacer().frame(height: 20)
 
-                // Logo / Header
-                VStack(spacing: 12) {
-                    Image(systemName: "shield.checkered")
-                        .font(.system(size: 56))
-                        .foregroundStyle(Color.accentColor)
+                    // MARK: Header
+                    headerSection
 
-                    Text("TravianTimer")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                    // MARK: Form
+                    formSection
 
-                    Text(headerSubtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.bottom, 32)
+                    // MARK: Messages
+                    messagesSection
 
-                // Form
-                VStack(spacing: 16) {
+                    // MARK: Primary Button
+                    primaryButton
 
-                    // --- Sign In / Sign Up ---
-                    if mode == .signIn || mode == .signUp {
-                        TextField("E-Mail", text: $email)
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                        SecureField("Passwort", text: $password)
-                            .textContentType(mode == .signUp ? .newPassword : .password)
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                        if mode == .signUp {
-                            SecureField("Passwort bestätigen", text: $passwordConfirm)
-                                .textContentType(.newPassword)
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                    }
-
-                    // --- Reset: E-Mail eingeben ---
-                    if mode == .resetRequest {
-                        TextField("E-Mail", text: $email)
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-
-                    // --- Reset: Code + neues Passwort ---
-                    if mode == .resetConfirm {
-                        TextField("6-stelliger Code", text: $resetCode)
-                            .textContentType(.oneTimeCode)
-                            .keyboardType(.numberPad)
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                        SecureField("Neues Passwort", text: $newPassword)
-                            .textContentType(.newPassword)
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                        SecureField("Neues Passwort bestätigen", text: $newPasswordConfirm)
-                            .textContentType(.newPassword)
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-
-                    // Error
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    // Success
-                    if let successMessage {
-                        Text(successMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.green)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    // Action Button
-                    Button {
-                        Task { await performAction() }
-                    } label: {
-                        HStack {
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                                    .controlSize(.small)
-                            }
-                            Text(actionButtonLabel)
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(isFormValid ? Color.accentColor : Color.gray)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .disabled(!isFormValid || isLoading)
-
-                    // Passwort vergessen (nur im Login-Modus)
+                    // MARK: Passwort vergessen (nur bei Sign-In)
                     if mode == .signIn {
-                        Button {
-                            withAnimation {
-                                mode = .resetRequest
-                                errorMessage = nil
-                                successMessage = nil
-                            }
-                        } label: {
-                            Text("Passwort vergessen?")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        // --- Apple Sign In ---
-                        HStack {
-                            Rectangle()
-                                .frame(height: 1)
-                                .foregroundStyle(Color(.systemGray4))
-                            Text("oder")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            Rectangle()
-                                .frame(height: 1)
-                                .foregroundStyle(Color(.systemGray4))
-                        }
-                        .padding(.vertical, 4)
-
-                        SignInWithAppleButton(.signIn) { request in
-                            let appleRequest = auth.prepareAppleSignInRequest()
-                            request.requestedScopes = appleRequest.requestedScopes
-                            request.nonce = appleRequest.nonce
-                        } onCompletion: { result in
-                            Task { await handleAppleSignIn(result: result) }
-                        }
-                        .signInWithAppleButtonStyle(
-                            colorScheme == .dark ? .white : .black
-                        )
-                        .frame(height: 50)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                        // --- Discord Sign In ---
-                        Button {
-                            Task { await handleDiscordSignIn() }
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "message.fill")
-                                    .font(.system(size: 18))
-                                Text("Mit Discord anmelden")
-                                    .fontWeight(.semibold)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(red: 88/255, green: 101/255, blue: 242/255)) // Discord Blurple #5865F2
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        .frame(height: 50)
-                        .disabled(isLoading)
+                        forgotPasswordLink
                     }
+
+                    // MARK: Divider + Apple Sign-In (nur bei Sign-In / Sign-Up)
+                    if mode != .resetPassword {
+                        dividerSection
+                        appleSignInSection
+                    }
+
+                    Spacer().frame(height: 12)
+
+                    // MARK: Mode Toggle
+                    modeToggle
+
+                    // MARK: Datenschutz-Links
+                    if mode != .resetPassword {
+                        legalLinksSection
+                    }
+
+                    // MARK: Version
+                    versionLabel
                 }
                 .padding(.horizontal, 24)
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .navigationBarTitleDisplayMode(.inline)
+            .disabled(authService.isLoading)
+            .sensoryFeedback(.success, trigger: hapticSuccess)
+            .sensoryFeedback(.error, trigger: hapticError)
+        }
+    }
 
-                Spacer()
+    // MARK: - Header
 
-                // Bottom links
-                HStack(spacing: 16) {
-                    if mode == .signIn {
-                        Button {
-                            switchTo(.signUp)
-                        } label: {
-                            Text("Noch keinen Account? ") +
-                            Text("Registrieren").fontWeight(.semibold)
+    private var headerSection: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "shield.checkered")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+
+            Text("TravianTimer")
+                .font(.largeTitle.bold())
+
+            Text(modeTitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var modeTitle: String {
+        switch mode {
+        case .signIn:        return "Anmelden"
+        case .signUp:        return "Neuen Account erstellen"
+        case .resetPassword: return "Passwort zurücksetzen"
+        }
+    }
+
+    // MARK: - Form Fields
+
+    private var formSection: some View {
+        VStack(spacing: 4) {
+            // Spielername (nur bei Registrierung)
+            if mode == .signUp {
+                VStack(alignment: .leading, spacing: 2) {
+                    TextField("Spielername", text: $playerName)
+                        .textContentType(.name)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .playerName)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .email }
+                        .onChange(of: focusedField) { _, newField in
+                            if newField != .playerName && playerName.isEmpty {
+                                showNameError = true
+                            } else if newField == .playerName {
+                                showNameError = false
+                            }
                         }
-                    } else if mode == .signUp {
-                        Button {
-                            switchTo(.signIn)
-                        } label: {
-                            Text("Schon einen Account? ") +
-                            Text("Anmelden").fontWeight(.semibold)
-                        }
-                    } else {
-                        // Reset modes
-                        Button {
-                            switchTo(.signIn)
-                        } label: {
-                            Text("Zurück zur ") +
-                            Text("Anmeldung").fontWeight(.semibold)
-                        }
+
+                    if showNameError && playerName.isEmpty {
+                        validationHint("Spielername erforderlich")
                     }
                 }
-                .font(.footnote)
-                .padding(.bottom, 24)
+            }
+
+            // E-Mail
+            VStack(alignment: .leading, spacing: 2) {
+                TextField("E-Mail", text: $email)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focusedField, equals: .email)
+                    .submitLabel(mode == .resetPassword ? .go : .next)
+                    .onSubmit {
+                        if mode == .resetPassword {
+                            Task { await performPrimaryAction() }
+                        } else {
+                            focusedField = .password
+                        }
+                    }
+                    .onChange(of: focusedField) { _, newField in
+                        if newField != .email && !email.isEmpty && !isEmailValid {
+                            showEmailError = true
+                        } else if newField == .email {
+                            showEmailError = false
+                        }
+                    }
+
+                if showEmailError && !email.isEmpty && !isEmailValid {
+                    validationHint("Ungültige E-Mail-Adresse")
+                }
+            }
+
+            // Passwort (nicht bei Reset)
+            if mode != .resetPassword {
+                VStack(alignment: .leading, spacing: 2) {
+                    SecureField("Passwort", text: $password)
+                        .textContentType(mode == .signUp ? .newPassword : .password)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .password)
+                        .submitLabel(mode == .signUp ? .next : .go)
+                        .onSubmit {
+                            if mode == .signUp {
+                                focusedField = .passwordConfirm
+                            } else {
+                                Task { await performPrimaryAction() }
+                            }
+                        }
+                        .onChange(of: focusedField) { _, newField in
+                            if newField != .password && !password.isEmpty && password.count < 6 {
+                                showPasswordError = true
+                            } else if newField == .password {
+                                showPasswordError = false
+                            }
+                        }
+
+                    if showPasswordError && !password.isEmpty && password.count < 6 {
+                        validationHint("Mindestens 6 Zeichen")
+                    }
+
+                    // Passwort-Stärke (nur bei Registrierung)
+                    if mode == .signUp && !password.isEmpty {
+                        passwordStrengthIndicator
+                    }
+                }
+            }
+
+            // Passwort bestätigen (nur bei Registrierung)
+            if mode == .signUp {
+                VStack(alignment: .leading, spacing: 2) {
+                    SecureField("Passwort bestätigen", text: $passwordConfirm)
+                        .textContentType(.newPassword)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .passwordConfirm)
+                        .submitLabel(.go)
+                        .onSubmit {
+                            Task { await performPrimaryAction() }
+                        }
+                        .onChange(of: focusedField) { _, newField in
+                            if newField != .passwordConfirm && !passwordConfirm.isEmpty && password != passwordConfirm {
+                                showConfirmError = true
+                            } else if newField == .passwordConfirm {
+                                showConfirmError = false
+                            }
+                        }
+
+                    if showConfirmError && !passwordConfirm.isEmpty && password != passwordConfirm {
+                        validationHint("Passwörter stimmen nicht überein")
+                    }
+                }
             }
         }
     }
 
-    // MARK: - Computed
+    // MARK: - Validation Hint
 
-    private var headerSubtitle: String {
-        switch mode {
-        case .signIn, .signUp:
-            return "Melde dich an, um deine Calls\nauf allen Geräten zu synchronisieren."
-        case .resetRequest:
-            return "Gib deine E-Mail ein, um einen\nReset-Code zu erhalten."
-        case .resetConfirm:
-            return "Gib den Code aus der E-Mail und\ndein neues Passwort ein."
-        }
+    private func validationHint(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(.red)
+            .padding(.leading, 4)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+            .animation(.easeInOut(duration: 0.2), value: text)
     }
 
-    private var actionButtonLabel: String {
-        switch mode {
-        case .signIn: return "Anmelden"
-        case .signUp: return "Registrieren"
-        case .resetRequest: return "Reset-Code senden"
-        case .resetConfirm: return "Passwort zurücksetzen"
+    // MARK: - Password Strength Indicator
+
+    private var passwordStrengthIndicator: some View {
+        let strength = passwordStrength
+        return HStack(spacing: 4) {
+            ForEach(0..<4, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(i < strength.level ? strength.color : Color(.systemGray4))
+                    .frame(height: 3)
+            }
+            Text(strength.label)
+                .font(.caption2)
+                .foregroundStyle(strength.color)
         }
+        .padding(.top, 2)
+        .animation(.easeInOut(duration: 0.2), value: password)
     }
 
-    // MARK: - Validation
+    private var passwordStrength: (level: Int, label: String, color: Color) {
+        let len = password.count
+        let hasUpper = password.range(of: "[A-Z]", options: .regularExpression) != nil
+        let hasLower = password.range(of: "[a-z]", options: .regularExpression) != nil
+        let hasDigit = password.range(of: "[0-9]", options: .regularExpression) != nil
+        let hasSpecial = password.range(of: "[^a-zA-Z0-9]", options: .regularExpression) != nil
+        let variety = [hasUpper, hasLower, hasDigit, hasSpecial].filter { $0 }.count
+
+        if len < 6 { return (1, "Zu kurz", .red) }
+        if len < 8 && variety < 2 { return (1, "Schwach", .red) }
+        if len < 10 && variety < 3 { return (2, "Mittel", .orange) }
+        if len >= 10 && variety >= 3 { return (3, "Stark", .yellow) }
+        if len >= 12 && variety >= 3 { return (4, "Sehr stark", .green) }
+        return (2, "Mittel", .orange)
+    }
+
+    // MARK: - Email Validation
+
+    private var isEmailValid: Bool {
+        let pattern = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+        return email.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    // MARK: - Messages
+
+    private var messagesSection: some View {
+        VStack(spacing: 4) {
+            if let error = authService.errorMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                    Text(error)
+                        .font(.caption)
+                }
+                .foregroundStyle(.red)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(Color.red.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            if let success = successMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                    Text(success)
+                        .font(.caption)
+                }
+                .foregroundStyle(.green)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(Color.green.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: authService.errorMessage)
+        .animation(.easeInOut(duration: 0.3), value: successMessage)
+    }
+
+    // MARK: - Primary Action Button
+
+    private var primaryButton: some View {
+        Button {
+            focusedField = nil
+            Task { await performPrimaryAction() }
+        } label: {
+            Group {
+                if authService.isLoading {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Text(primaryButtonTitle)
+                        .fontWeight(.semibold)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.orange)
+        .disabled(!isFormValid)
+    }
+
+    private var primaryButtonTitle: String {
+        switch mode {
+        case .signIn:        return "Anmelden"
+        case .signUp:        return "Registrieren"
+        case .resetPassword: return "Link senden"
+        }
+    }
 
     private var isFormValid: Bool {
-        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isEmailValid = trimmedEmail.contains("@") && trimmedEmail.contains(".")
-
         switch mode {
         case .signIn:
             return isEmailValid && password.count >= 6
         case .signUp:
-            return isEmailValid && password.count >= 6 && password == passwordConfirm
-        case .resetRequest:
+            return isEmailValid && password.count >= 6 && password == passwordConfirm && !playerName.trimmingCharacters(in: .whitespaces).isEmpty
+        case .resetPassword:
             return isEmailValid
-        case .resetConfirm:
-            return !resetCode.isEmpty && newPassword.count >= 6 && newPassword == newPasswordConfirm
         }
     }
 
-    // MARK: - Navigation
-
-    private func switchTo(_ newMode: Mode) {
-        withAnimation {
-            mode = newMode
-            errorMessage = nil
-            successMessage = nil
-            password = ""
-            passwordConfirm = ""
-            resetCode = ""
-            newPassword = ""
-            newPasswordConfirm = ""
-        }
-    }
-
-    // MARK: - OAuth Sign In (Discord, Google)
-
-    private func handleDiscordSignIn() async {
-        await handleOAuthSignIn { await auth.startDiscordSignIn() }
-    }
-
-    private func handleOAuthSignIn(action: () async -> Result<Void, AuthError>) async {
-        await MainActor.run {
-            isLoading = true
-            errorMessage = nil
-        }
-
-        let result = await action()
-
-        await MainActor.run {
-            isLoading = false
-            switch result {
-            case .success:
-                break // isAuthenticated triggers navigation
-            case .failure(let error):
-                // User-Abbruch → kein Fehler anzeigen
-                if error.errorDescription?.contains("Abgebrochen") == true {
-                    return
-                }
-                errorMessage = error.errorDescription
-            }
-        }
-    }
-
-    // MARK: - Apple Sign In
-
-    private func handleAppleSignIn(result: Result<ASAuthorization, Error>) async {
-        switch result {
-        case .success(let authorization):
-            guard let appleCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-                await MainActor.run {
-                    errorMessage = "Ungültige Apple-Anmeldedaten"
-                }
-                return
-            }
-
-            await MainActor.run {
-                isLoading = true
-                errorMessage = nil
-            }
-
-            let signInResult = await auth.handleAppleSignIn(credential: appleCredential)
-
-            await MainActor.run {
-                isLoading = false
-                switch signInResult {
-                case .success:
-                    break // isAuthenticated triggers navigation
-                case .failure(let error):
-                    errorMessage = error.errorDescription
-                }
-            }
-
-        case .failure(let error):
-            // User-Abbruch → kein Fehler anzeigen
-            if let authError = error as? ASAuthorizationError,
-               authError.code == .canceled {
-                return
-            }
-            await MainActor.run {
-                errorMessage = "Apple-Anmeldung fehlgeschlagen: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    // MARK: - Actions
-
-    private func performAction() async {
-        await MainActor.run {
-            isLoading = true
-            errorMessage = nil
-            successMessage = nil
-        }
-
-        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    private func performPrimaryAction() async {
+        successMessage = nil
+        authService.errorMessage = nil
 
         switch mode {
-        case .signUp:
-            let result = await auth.signUp(email: trimmedEmail, password: password)
-            await MainActor.run {
-                isLoading = false
-                switch result {
-                case .success(let msg):
-                    successMessage = msg
-                    if !auth.isAuthenticated {
-                        mode = .signIn
-                        password = ""
-                        passwordConfirm = ""
-                    }
-                case .failure(let error):
-                    errorMessage = error.errorDescription
-                }
-            }
-
         case .signIn:
-            let result = await auth.signIn(email: trimmedEmail, password: password)
-            await MainActor.run {
-                isLoading = false
-                switch result {
-                case .success:
-                    break
-                case .failure(let error):
-                    errorMessage = error.errorDescription
-                }
+            await authService.signIn(email: email, password: password)
+            if authService.isAuthenticated {
+                hapticSuccess.toggle()
+            } else if authService.errorMessage != nil {
+                hapticError.toggle()
             }
 
-        case .resetRequest:
-            let result = await auth.sendPasswordReset(email: trimmedEmail)
-            await MainActor.run {
-                isLoading = false
-                switch result {
-                case .success:
-                    successMessage = "Reset-Code gesendet! Prüfe deine E-Mail."
-                    mode = .resetConfirm
-                case .failure(let error):
-                    errorMessage = error.errorDescription
-                }
+        case .signUp:
+            await authService.signUp(email: email, password: password, playerName: playerName)
+            if authService.errorMessage == nil && !authService.isAuthenticated {
+                successMessage = "Bestätigungs-Mail gesendet! Bitte E-Mail prüfen."
+                hapticSuccess.toggle()
+            } else if authService.errorMessage != nil {
+                hapticError.toggle()
             }
 
-        case .resetConfirm:
-            let result = await auth.verifyRecoveryAndSetPassword(
-                email: trimmedEmail,
-                code: resetCode.trimmingCharacters(in: .whitespacesAndNewlines),
-                newPassword: newPassword
-            )
-            await MainActor.run {
-                isLoading = false
-                switch result {
-                case .success:
-                    successMessage = "Passwort erfolgreich geändert! Du kannst dich jetzt anmelden."
-                    mode = .signIn
-                    password = ""
-                    resetCode = ""
-                    newPassword = ""
-                    newPasswordConfirm = ""
-                case .failure(let error):
-                    errorMessage = error.errorDescription
+        case .resetPassword:
+            let success = await authService.sendPasswordReset(email: email)
+            if success {
+                successMessage = "Reset-Link gesendet! Bitte E-Mail prüfen."
+                hapticSuccess.toggle()
+            } else {
+                hapticError.toggle()
+            }
+        }
+    }
+
+    // MARK: - Forgot Password Link
+
+    private var forgotPasswordLink: some View {
+        Button("Passwort vergessen?") {
+            withAnimation {
+                mode = .resetPassword
+                authService.errorMessage = nil
+                successMessage = nil
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    // MARK: - Divider
+
+    private var dividerSection: some View {
+        HStack {
+            Rectangle().frame(height: 1).foregroundStyle(.quaternary)
+            Text("oder")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Rectangle().frame(height: 1).foregroundStyle(.quaternary)
+        }
+    }
+
+    // MARK: - Apple Sign-In
+
+    private var appleSignInSection: some View {
+        SignInWithAppleButton(mode == .signUp ? .signUp : .signIn) { request in
+            let appleRequest = authService.prepareAppleSignInRequest()
+            request.requestedScopes = appleRequest.requestedScopes
+            request.nonce = appleRequest.nonce
+        } onCompletion: { result in
+            Task {
+                await authService.handleAppleSignIn(result: result)
+                if authService.isAuthenticated {
+                    hapticSuccess.toggle()
+                } else if authService.errorMessage != nil {
+                    hapticError.toggle()
                 }
             }
         }
+        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+        .frame(height: 44)
+        .cornerRadius(8)
+    }
+
+    // MARK: - Mode Toggle
+
+    private var modeToggle: some View {
+        HStack(spacing: 4) {
+            Text(modeToggleQuestion)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Button(modeToggleAction) {
+                withAnimation {
+                    switch mode {
+                    case .signIn:        mode = .signUp
+                    case .signUp:        mode = .signIn
+                    case .resetPassword: mode = .signIn
+                    }
+                    authService.errorMessage = nil
+                    successMessage = nil
+                    resetValidation()
+                }
+            }
+            .font(.footnote.bold())
+            .foregroundStyle(.orange)
+        }
+    }
+
+    private var modeToggleQuestion: String {
+        switch mode {
+        case .signIn:        return "Noch keinen Account?"
+        case .signUp:        return "Schon einen Account?"
+        case .resetPassword: return "Passwort fällt dir wieder ein?"
+        }
+    }
+
+    private var modeToggleAction: String {
+        switch mode {
+        case .signIn:        return "Registrieren"
+        case .signUp:        return "Anmelden"
+        case .resetPassword: return "Zurück zur Anmeldung"
+        }
+    }
+
+    private func resetValidation() {
+        showEmailError = false
+        showPasswordError = false
+        showConfirmError = false
+        showNameError = false
+    }
+
+    // MARK: - Legal Links
+
+    private var legalLinksSection: some View {
+        HStack(spacing: 16) {
+            Link("Datenschutz", destination: URL(string: "https://traviantimer.app/datenschutz")!)
+            Link("Nutzungsbedingungen", destination: URL(string: "https://traviantimer.app/nutzungsbedingungen")!)
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+
+    // MARK: - Version
+
+    private var versionLabel: some View {
+        Text(appVersion)
+            .font(.caption2)
+            .foregroundStyle(.quaternary)
+            .padding(.bottom, 8)
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "Version \(version) (\(build))"
     }
 }

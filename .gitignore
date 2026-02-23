@@ -7,6 +7,22 @@ discord-bot/node_modules/
 *.xcworkspace/xcuserdata/
 DerivedData/
 build/
+*.ipa
+*.dSYM.zip
+*.dSYM
 
 # macOS
 .DS_Store
+**/.DS_Store
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# Claude Code
+TravianTimer/.plan
+.claude/
+
+# Misc
+*.swp
+*~

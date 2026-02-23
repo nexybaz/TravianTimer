@@ -1,0 +1,60 @@
+-- ============================================================
+-- 005_seed.sql
+-- TravianTimer v2 — Initiale Daten
+-- Bot-System-User, Troop-Crop-Mapping
+-- ============================================================
+
+-- ============================================================
+-- BOT-SYSTEM-USER
+-- Der Discord-Bot braucht einen festen User in der profiles-Tabelle,
+-- damit er Calls erstellen kann (created_by Referenz).
+--
+-- WICHTIG: Dieser User muss AUCH in auth.users existieren.
+-- Supabase erfordert das wegen des REFERENCES auth.users(id).
+-- → Am besten im Supabase Dashboard unter Authentication einen
+--   Service-User manuell anlegen, und dessen UUID hier eintragen.
+--
+-- PLATZHALTER: Die UUID unten muss nach dem Anlegen des
+-- Auth-Users durch die echte UUID ersetzt werden!
+-- ============================================================
+
+-- SCHRITT 1: UUID des Bot-Users hier eintragen (nach manuellem Anlegen in Auth)
+-- INSERT INTO profiles (id, player_name, role)
+-- VALUES (
+--     '00000000-0000-0000-0000-000000000000',  -- ← Echte UUID eintragen!
+--     'Discord-Bot',
+--     'caller'
+-- );
+
+-- Hinweis: Auskommentiert, weil die UUID erst nach dem Anlegen
+-- des Auth-Users im Supabase Dashboard bekannt ist.
+-- Danach: Kommentar entfernen, UUID eintragen, nochmal ausfuehren.
+
+
+-- ============================================================
+-- TROOP CROP MAP (Referenz)
+-- Das Mapping TroopKind → Getreide/Stunde wird als statische
+-- JSON-Datei im Edge Function Bundle gespeichert (nicht in der DB).
+-- Hier als Referenz dokumentiert:
+--
+-- gauls.phalanx        = 1
+-- gauls.swordsman      = 1
+-- gauls.pathfinder      = 2
+-- gauls.thunderteuton   = 3  (Theutates-Blitz)
+-- gauls.druidrider     = 2
+-- gauls.haeduan        = 3
+--
+-- romans.legionnaire   = 1
+-- romans.praetorian    = 1
+-- romans.imperatoris   = 3
+-- romans.equitescaesaris = 4
+-- romans.equitesimperatoris = 3
+-- romans.equiteslegati = 2
+--
+-- teutons.clubswinger  = 1
+-- teutons.spearman     = 1
+-- teutons.paladin      = 2
+-- teutons.teutonicKnight = 3
+--
+-- → Wird als troop_crop_map.json in den Edge Functions abgelegt.
+-- ============================================================

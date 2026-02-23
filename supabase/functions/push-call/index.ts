@@ -1,19 +1,18 @@
-// push-call: Speichert einen Deff-Call und sendet Push an alle Geräte.
-// Deploy: supabase functions deploy push-call
+// supabase/functions/push-call/index.ts
+// Empfaengt Call-Daten vom Discord Bot und erstellt einen neuen Call in der DB.
 //
-// Supabase Secrets benötigt:
-//   APNS_KEY_ID       - Apple Key ID
-//   APNS_TEAM_ID      - Apple Team ID (BHMEWMQUJE)
-//   APNS_PRIVATE_KEY  - .p8 Datei-Inhalt (PEM)
-//   APNS_SANDBOX      - "true" für Development, "false" für Production
-//   BOT_SECRET        - Shared secret für Authentifizierung vom Discord Bot
+// Auth: BOT_SECRET als Bearer Token
+// Body: { discord_channel_id, discord_thread_id?, discord_message_id, title, target_x, target_y, arrival?, link?, crop_limit?, crop_pledged_total? }
+//
+// Ablauf:
+// 1. Auth pruefen (BOT_SECRET)
+// 2. Kingdom-ID via discord_channels Tabelle ermitteln
+// 3. Duplikat-Check (discord_message_id)
+// 4. Call in DB einfuegen (created_by = BOT_SYSTEM_USER_ID)
+// 5. Push Notification wird automatisch vom on_new_call_push Trigger ausgeloest
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import {
-  create,
-  getNumericDate,
-} from "https://deno.land/x/djwt@v3.0.2/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,273 +20,178 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// --- APNs JWT Token generieren ---
-
-async function createApnsJwt(): Promise<string> {
-  const keyId = Deno.env.get("APNS_KEY_ID")!;
-  const teamId = Deno.env.get("APNS_TEAM_ID")!;
-  const privateKeyPem = Deno.env.get("APNS_PRIVATE_KEY")!;
-
-  // PEM -> CryptoKey
-  const pemContent = privateKeyPem
-    .replace("-----BEGIN PRIVATE KEY-----", "")
-    .replace("-----END PRIVATE KEY-----", "")
-    .replace(/\s/g, "");
-
-  const binaryKey = Uint8Array.from(atob(pemContent), (c) => c.charCodeAt(0));
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["sign"]
-  );
-
-  const jwt = await create(
-    { alg: "ES256", kid: keyId },
-    { iss: teamId, iat: getNumericDate(0) },
-    cryptoKey
-  );
-
-  return jwt;
-}
-
-// --- APNs Push senden ---
-
-async function sendApnsPush(
-  token: string,
-  payload: Record<string, unknown>,
-  jwt: string
-): Promise<boolean> {
-  const sandbox = Deno.env.get("APNS_SANDBOX") === "true";
-  const host = sandbox
-    ? "https://api.sandbox.push.apple.com"
-    : "https://api.push.apple.com";
-
-  const url = `${host}/3/device/${token}`;
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        authorization: `bearer ${jwt}`,
-        "apns-topic": "tt.TravianTimer",
-        "apns-push-type": "alert",
-        "apns-priority": "10",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.status === 200) {
-      return true;
-    }
-
-    const body = await res.text();
-    console.error(`APNs error for ${token.slice(0, 8)}...: ${res.status} ${body}`);
-
-    // 410 Gone = Token ungültig -> soll gelöscht werden
-    if (res.status === 410) {
-      return false;
-    }
-
-    return false;
-  } catch (err) {
-    console.error(`APNs fetch error for ${token.slice(0, 8)}...:`, err);
-    return false;
-  }
-}
-
-// --- Main Handler ---
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Authentifizierung: BOT_SECRET als Bearer-Token prüfen
-    const authHeader = req.headers.get("authorization") || "";
-    const botSecret = Deno.env.get("BOT_SECRET") || "";
+    // 1. Auth pruefen
+    const botSecret = Deno.env.get("BOT_SECRET") ?? "";
+    const authHeader = req.headers.get("authorization") ?? "";
+    const token = authHeader.replace("Bearer ", "");
 
-    if (botSecret && !authHeader.includes(botSecret)) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!botSecret || token !== botSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
+    // Body lesen
+    const body = await req.json();
     const {
+      discord_channel_id,
+      discord_thread_id,
+      discord_message_id,
       title,
       target_x,
       target_y,
       arrival,
       link,
       crop_limit,
-      discord_message_id,
-      guild_id,
-    } = await req.json();
+      crop_pledged_total,
+    } = body;
 
-    // Validierung
-    if (target_x === undefined || target_y === undefined || !arrival) {
+    // Pflichtfelder pruefen
+    if (!discord_channel_id || target_x === undefined || target_y === undefined) {
       return new Response(
-        JSON.stringify({ error: "target_x, target_y, arrival required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "discord_channel_id, target_x und target_y sind Pflicht",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Supabase Admin Client
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
 
-    // Deduplizierung: gleiche discord_message_id?
+    // 2. Kingdom-ID via discord_channels Tabelle ermitteln
+    const { data: channelMapping, error: channelError } = await supabase
+      .from("discord_channels")
+      .select("kingdom_id")
+      .eq("discord_channel_id", discord_channel_id)
+      .single();
+
+    if (channelError || !channelMapping) {
+      console.error(
+        `[push-call] Kein Kingdom-Mapping fuer Channel ${discord_channel_id}:`,
+        channelError
+      );
+      return new Response(
+        JSON.stringify({
+          error: "Kein Kingdom fuer diesen Discord Channel konfiguriert",
+          discord_channel_id,
+        }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const kingdomId = channelMapping.kingdom_id;
+
+    // 3. Duplikat-Check
     if (discord_message_id) {
       const { data: existing } = await supabase
         .from("calls")
         .select("id")
         .eq("discord_message_id", discord_message_id)
-        .maybeSingle();
+        .limit(1);
 
-      if (existing) {
+      if (existing && existing.length > 0) {
+        console.log(
+          `[push-call] Duplikat: discord_message_id=${discord_message_id} → call=${existing[0].id}`
+        );
         return new Response(
-          JSON.stringify({ success: true, duplicate: true }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({
+            duplicate: true,
+            callId: existing[0].id,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
         );
       }
     }
 
-    // Call in DB speichern
-    const callData = {
+    // 4. Call einfuegen
+    const botUserId = Deno.env.get("BOT_SYSTEM_USER_ID") ?? "";
+    if (!botUserId) {
+      console.error("[push-call] BOT_SYSTEM_USER_ID nicht konfiguriert");
+      return new Response(
+        JSON.stringify({ error: "BOT_SYSTEM_USER_ID fehlt" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const callData: Record<string, unknown> = {
+      kingdom_id: kingdomId,
+      created_by: botUserId,
       title: title || "Deff-Call",
       target_x,
       target_y,
-      arrival,
-      link: link || null,
-      crop_limit: crop_limit || null,
+      status: "open",
+      discord_channel_id,
+      discord_thread_id: discord_thread_id || null,
       discord_message_id: discord_message_id || null,
-      guild_id: guild_id || null,
     };
 
-    const { error: insertError } = await supabase.from("calls").insert(callData);
+    // Optionale Felder
+    if (arrival) callData.arrival = arrival;
+    if (link) callData.link = link;
+    if (crop_limit) callData.crop_limit = crop_limit;
+    if (crop_pledged_total !== undefined)
+      callData.crop_pledged_total = crop_pledged_total;
+
+    const { data: newCall, error: insertError } = await supabase
+      .from("calls")
+      .insert(callData)
+      .select("id")
+      .single();
 
     if (insertError) {
-      console.error("Insert error:", insertError);
-      // Bei Unique-Constraint-Verletzung trotzdem ok
-      if (insertError.code !== "23505") {
-        return new Response(
-          JSON.stringify({ error: "Database error" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    }
-
-    // Device-Tokens holen (Team-scoped wenn guild_id vorhanden)
-    let devices: { token: string }[] = [];
-
-    if (guild_id) {
-      // Team-Members für diese Guild holen
-      const { data: members } = await supabase
-        .from("team_members")
-        .select("user_id")
-        .eq("guild_id", guild_id);
-
-      const memberUserIds = (members || []).map((m: any) => m.user_id);
-
-      if (memberUserIds.length > 0) {
-        // Nur Devices dieser Team-Members
-        const { data: teamDevices } = await supabase
-          .from("device_tokens")
-          .select("token")
-          .in("user_id", memberUserIds);
-        devices = teamDevices || [];
-        console.log(`Team-scoped push: ${devices.length} devices for guild ${guild_id}`);
-      }
-    }
-
-    // Fallback: Wenn keine Team-Devices oder keine guild_id → alle Devices
-    if (devices.length === 0) {
-      const { data: allDevices, error: devicesError } = await supabase
-        .from("device_tokens")
-        .select("token");
-
-      if (devicesError || !allDevices || allDevices.length === 0) {
-        console.log("No devices registered");
-        return new Response(
-          JSON.stringify({ success: true, pushed: 0 }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      devices = allDevices;
-    }
-
-    // APNs Payload bauen
-    const apnsPayload = {
-      aps: {
-        alert: {
-          title: "Deff-Call",
-          body: `${title || "Deff-Call"} (${target_x}|${target_y})`,
-        },
-        sound: "default",
-        "content-available": 1,
-      },
-      call: {
-        title: title || "Deff-Call",
-        targetX: target_x,
-        targetY: target_y,
-        arrival,
-        link: link || null,
-        cropLimit: crop_limit || null,
-        discordMessageId: discord_message_id || null,
-        guildId: guild_id || null,
-      },
-    };
-
-    // JWT für APNs erzeugen
-    const jwt = await createApnsJwt();
-
-    // Push an alle Geräte senden
-    const invalidTokens: string[] = [];
-    let successCount = 0;
-
-    const pushResults = await Promise.allSettled(
-      devices.map(async (d: { token: string }) => {
-        const ok = await sendApnsPush(d.token, apnsPayload, jwt);
-        if (ok) {
-          successCount++;
-        } else {
-          invalidTokens.push(d.token);
+      console.error("[push-call] Insert fehlgeschlagen:", insertError);
+      return new Response(
+        JSON.stringify({ error: "Call konnte nicht erstellt werden", details: insertError.message }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
-      })
-    );
-
-    // Ungültige Tokens aufräumen
-    if (invalidTokens.length > 0) {
-      console.log(`Cleaning up ${invalidTokens.length} invalid tokens`);
-      await supabase
-        .from("device_tokens")
-        .delete()
-        .in("token", invalidTokens);
+      );
     }
 
     console.log(
-      `Push sent: ${successCount}/${devices.length} successful, ${invalidTokens.length} removed`
+      `[push-call] Call erstellt: ${newCall.id} (Kingdom ${kingdomId}, ${target_x}|${target_y})`
     );
+
+    // Push Notification wird automatisch vom on_new_call_push DB Trigger ausgeloest!
 
     return new Response(
       JSON.stringify({
         success: true,
-        pushed: successCount,
-        total: devices.length,
-        removed: invalidTokens.length,
+        callId: newCall.id,
+        kingdomId,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   } catch (err) {
-    console.error("Unexpected error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.error("[push-call] Fehler:", err);
+    return new Response(JSON.stringify({ error: "Interner Fehler" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

@@ -9,6 +9,12 @@ struct TroopsOverviewView: View {
 
     @State private var typesExpanded = false
     @State private var historyExpanded = false
+    @State private var showTroopImport = false
+    @State private var expandedCard: StatCardType? = nil
+
+    enum StatCardType: Hashable {
+        case gesamt, off, deff, crop
+    }
 
     // MARK: - Computed (aktueller Stand)
 
@@ -46,116 +52,661 @@ struct TroopsOverviewView: View {
         history.totalsByDate()
     }
 
+    private var villageCount: Int {
+        profile.villages.count
+    }
+
     // MARK: - Body
+
+    @EnvironmentObject private var authService: AuthService
 
     var body: some View {
         NavigationStack {
-            if profile.villages.isEmpty || totalTroops == 0 {
-                emptyState
-            } else {
-                ScrollView {
-                    VStack(spacing: 12) {
-                        statsCards
+            Group {
+                if authService.profile?.isVerified != true {
+                    VerificationRequiredView(feature: "Truppen")
+                        .environmentObject(authService)
+                } else if profile.villages.isEmpty || totalTroops == 0 {
+                    emptyState
+                } else {
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            statsCards
 
-                        if historyTotals.count >= 2 {
-                            lineChartCard
+                            if historyTotals.count >= 2 {
+                                lineChartCard
+                            }
+
+                            // Dorfuebersicht
+                            villageBreakdownSection
+
+                            aggregatedTypesSection
+
+                            if !historyTotals.isEmpty {
+                                historySection
+                            }
                         }
-
-                        aggregatedTypesSection
-
-                        if !historyTotals.isEmpty {
-                            historySection
-                        }
+                        .padding(.horizontal)
+                        .padding(.top)
+                        .padding(.bottom, 30)
                     }
-                    .padding(.horizontal)
-                    .padding(.top)
-                    .padding(.bottom, 20)
+                }
+            }
+            .navigationTitle("Truppen")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showTroopImport = true
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    AvatarButton()
+                }
+                .sharedBackgroundVisibility(.hidden)
+            }
+            .sheet(isPresented: $showTroopImport) {
+                TroopUpdateView()
+            }
+        }
+    }
+
+    // MARK: - Empty State (Prominenter Import-CTA)
+
+    private var emptyState: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                // Hero Icon
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange.opacity(0.2), .orange.opacity(0.05)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+
+                    Image(systemName: "shield.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(.orange.opacity(0.7))
+                }
+
+                VStack(spacing: 10) {
+                    Text("Truppen importieren")
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Text("Kopiere deine Truppenübersicht aus dem Spiel\nund importiere sie hier mit einem Tap.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                }
+
+                // Grosser Import Button
+                Button {
+                    showTroopImport = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.down.fill")
+                            .font(.system(size: 18))
+                        Text("Truppen importieren")
+                            .font(.headline)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .padding(.horizontal, 20)
+
+                // Anleitung-Steps
+                VStack(alignment: .leading, spacing: 14) {
+                    stepRow(number: 1, text: "Öffne die Truppenübersicht im Spiel")
+                    stepRow(number: 2, text: "Kopiere die Tabelle (ab Dorfname)")
+                    stepRow(number: 3, text: "Tippe oben auf \"Truppen importieren\"")
+                }
+                .padding(.horizontal, 30)
+                .padding(.top, 8)
+            }
+
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal)
+    }
+
+    private func stepRow(number: Int, text: String) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.15))
+                    .frame(width: 28, height: 28)
+                Text("\(number)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.orange)
+            }
+
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Stats Cards (Gesamt / Off / Deff / Crop)
+
+    private var statsCards: some View {
+        VStack(spacing: 10) {
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10)
+            ], spacing: 10) {
+                statCard(type: .gesamt, value: totalTroops, label: "Gesamt", color: Color(.systemGray), icon: "shield.fill")
+                statCard(type: .off, value: totalOff, label: "Off", color: .red, icon: "flame.fill")
+                statCard(type: .deff, value: totalDeff, label: "Deff", color: .green, icon: "shield.checkered")
+                statCard(type: .crop, value: totalCrop, label: "Getreide/h", color: .orange, icon: "leaf.fill")
+            }
+
+            // Expandierter Detail-Bereich
+            if let expanded = expandedCard {
+                cardDetail(for: expanded)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private func statCard(type: StatCardType, value: Int, label: String, color: Color, icon: String) -> some View {
+        let isSelected = expandedCard == type
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                expandedCard = isSelected ? nil : type
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(color)
+
+                Text(shortNumber(value))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? color.opacity(0.5) : .clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Zahlen kompakt darstellen: 1234 → 1.2k, 12345 → 12.3k
+    private func shortNumber(_ value: Int) -> String {
+        if value >= 10000 {
+            let k = Double(value) / 1000.0
+            return String(format: "%.1fk", k)
+        }
+        return "\(value)"
+    }
+
+    // MARK: - Card Detail
+
+    @ViewBuilder
+    private func cardDetail(for type: StatCardType) -> some View {
+        switch type {
+        case .gesamt:
+            gesamtDetail
+        case .off:
+            offDetail
+        case .deff:
+            deffDetail
+        case .crop:
+            cropDetail
+        }
+    }
+
+    // MARK: Gesamt Detail — Aufschlüsselung nach Truppentyp
+
+    private var gesamtDetail: some View {
+        let sorted = aggregatedCounts
+        let maxCount = sorted.first?.count ?? 1
+
+        return VStack(spacing: 0) {
+            ForEach(Array(sorted.enumerated()), id: \.element.kind) { index, entry in
+                HStack(spacing: 10) {
+                    Image(systemName: entry.kind.categoryIcon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(entry.kind.tribeColor)
+                        .frame(width: 20)
+
+                    Text(entry.kind.uiName)
+                        .font(.system(size: 13))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    // Mini-Balken
+                    let ratio = CGFloat(entry.count) / CGFloat(max(1, maxCount))
+                    GeometryReader { geo in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(entry.kind.tribeColor.opacity(0.4))
+                            .frame(width: geo.size.width * ratio, height: 4)
+                    }
+                    .frame(width: 60, height: 4)
+
+                    Text("\(entry.count)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
+                        .frame(width: 50, alignment: .trailing)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+
+                if index < sorted.count - 1 {
+                    Divider().padding(.leading, 44)
                 }
             }
         }
-        .navigationTitle("Truppen")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: 20) {
-            Spacer()
-
-            ZStack {
-                Circle()
-                    .fill(Color.orange.opacity(0.12))
-                    .frame(width: 100, height: 100)
-
-                Image(systemName: "shield.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.orange.opacity(0.6))
-            }
-
-            VStack(spacing: 8) {
-                Text("Keine Truppen erfasst")
-                    .font(.title3)
-                    .fontWeight(.bold)
-
-                Text("Importiere deine Dörfer in den Einstellungen\nund hinterlege Truppenzahlen.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 40)
-    }
-
-    // MARK: - Stats Cards (Gesamt / Off / Deff)
-
-    private var statsCards: some View {
-        HStack(spacing: 10) {
-            statCard(
-                value: totalTroops,
-                label: "Gesamt",
-                color: Color(.systemGray),
-                icon: "shield.fill"
-            )
-            statCard(
-                value: totalOff,
-                label: "Off",
-                color: .red,
-                icon: "flame.fill"
-            )
-            statCard(
-                value: totalDeff,
-                label: "Deff",
-                color: .green,
-                icon: "shield.checkered"
-            )
-        }
-    }
-
-    private func statCard(value: Int, label: String, color: Color, icon: String) -> some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.caption2)
-                    .foregroundStyle(color)
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text("\(value)")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(color)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
+    }
+
+    // MARK: Off Detail — Top 3 + bestes Dorf
+
+    private var offDetail: some View {
+        let offTroops = aggregatedCounts.filter { $0.kind.isOffensive }.prefix(3)
+        let bestVillage = bestVillage(filter: { $0.isOffensive })
+
+        return VStack(spacing: 0) {
+            // Top 3
+            ForEach(Array(offTroops.enumerated()), id: \.element.kind) { index, entry in
+                HStack(spacing: 10) {
+                    Text("\(index + 1).")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.red.opacity(0.6))
+                        .frame(width: 20)
+
+                    Image(systemName: entry.kind.categoryIcon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(entry.kind.tribeColor)
+
+                    Text(entry.kind.uiName)
+                        .font(.system(size: 13))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Text("\(entry.count)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+
+                if index < offTroops.count - 1 {
+                    Divider().padding(.leading, 44)
+                }
+            }
+
+            // Bestes Dorf
+            if let village = bestVillage {
+                Divider().padding(.horizontal, 14)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red.opacity(0.6))
+
+                    Text("Stärkstes Dorf")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Text(village.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+
+                    Text("(\(village.count))")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+            }
+        }
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    // MARK: Deff Detail — Top 3 + bestes Dorf
+
+    private var deffDetail: some View {
+        let deffTroops = aggregatedCounts.filter { $0.kind.isDefensive }.prefix(3)
+        let bestVillage = bestVillage(filter: { $0.isDefensive })
+
+        return VStack(spacing: 0) {
+            ForEach(Array(deffTroops.enumerated()), id: \.element.kind) { index, entry in
+                HStack(spacing: 10) {
+                    Text("\(index + 1).")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.green.opacity(0.6))
+                        .frame(width: 20)
+
+                    Image(systemName: entry.kind.categoryIcon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(entry.kind.tribeColor)
+
+                    Text(entry.kind.uiName)
+                        .font(.system(size: 13))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Text("\(entry.count)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+
+                if index < deffTroops.count - 1 {
+                    Divider().padding(.leading, 44)
+                }
+            }
+
+            if let village = bestVillage {
+                Divider().padding(.horizontal, 14)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.green.opacity(0.6))
+
+                    Text("Stärkstes Dorf")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Text(village.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+
+                    Text("(\(village.count))")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+            }
+        }
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    // MARK: Crop Detail — Off vs Deff + teuerste Truppe
+
+    private var cropDetail: some View {
+        let offCrop = aggregatedCounts.filter { $0.kind.isOffensive }.reduce(0) { $0 + $1.count * $1.kind.cropPerHour }
+        let deffCrop = aggregatedCounts.filter { $0.kind.isDefensive }.reduce(0) { $0 + $1.count * $1.kind.cropPerHour }
+        let cropTotal = max(1, totalCrop)
+        let offRatio = CGFloat(offCrop) / CGFloat(cropTotal)
+        let deffRatio = CGFloat(deffCrop) / CGFloat(cropTotal)
+
+        // Teuerste Truppe (höchster Gesamt-Crop-Anteil)
+        let mostExpensive = aggregatedCounts
+            .map { (kind: $0.kind, crop: $0.count * $0.kind.cropPerHour) }
+            .sorted { $0.crop > $1.crop }
+            .first
+
+        return VStack(spacing: 10) {
+            // Off vs Deff Balken
+            VStack(spacing: 6) {
+                HStack {
+                    HStack(spacing: 4) {
+                        Circle().fill(Color.red).frame(width: 8, height: 8)
+                        Text("Off")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text("\(offCrop) Getreide/h")
+                        .font(.system(size: 12, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.red)
+                }
+
+                GeometryReader { geo in
+                    HStack(spacing: 2) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.red.opacity(0.6))
+                            .frame(width: max(2, geo.size.width * offRatio))
+
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.green.opacity(0.6))
+                            .frame(width: max(2, geo.size.width * deffRatio))
+
+                        if offRatio + deffRatio < 1 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color(.systemGray5))
+                        }
+                    }
+                }
+                .frame(height: 8)
+
+                HStack {
+                    HStack(spacing: 4) {
+                        Circle().fill(Color.green).frame(width: 8, height: 8)
+                        Text("Deff")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text("\(deffCrop) Getreide/h")
+                        .font(.system(size: 12, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.green)
+                }
+            }
+
+            // Teuerste Truppe
+            if let top = mostExpensive {
+                Divider()
+
+                HStack(spacing: 8) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+
+                    Text("Teuerste Einheit")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Text(top.kind.uiName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+
+                    Text("\(top.crop) Getreide/h")
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    // MARK: - Village Helpers
+
+    private struct VillageRank {
+        let name: String
+        let count: Int
+    }
+
+    private func bestVillage(filter: (TroopKind) -> Bool) -> VillageRank? {
+        var villageTotals: [(name: String, count: Int)] = []
+        for village in profile.villages {
+            let count = village.troopCounts.reduce(0) { total, entry in
+                guard let kind = TroopKind(rawValue: entry.key), filter(kind) else { return total }
+                return total + entry.value
+            }
+            if count > 0 {
+                villageTotals.append((name: village.name, count: count))
+            }
+        }
+        guard let best = villageTotals.max(by: { $0.count < $1.count }) else { return nil }
+        return VillageRank(name: best.name, count: best.count)
+    }
+
+    // MARK: - Village Breakdown Section
+
+    private var villageBreakdownSection: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Image(systemName: "house.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange)
+
+                Text("Dörfer")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Text("(\(villageCount))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+
+            Divider().padding(.horizontal)
+
+            ForEach(Array(villagesSorted.enumerated()), id: \.element.name) { index, village in
+                villageRow(village: village)
+                    .padding(.horizontal)
+
+                if index < villagesSorted.count - 1 {
+                    Divider().padding(.leading, 54)
+                }
+            }
+            .padding(.bottom, 8)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+
+    private struct VillageSummary: Identifiable {
+        let name: String
+        let troops: Int
+        let crop: Int
+        let topTroop: TroopKind?
+        var id: String { name }
+    }
+
+    private var villagesSorted: [VillageSummary] {
+        profile.villages.map { village in
+            let troops = village.troopCounts.values.reduce(0, +)
+            let crop = village.troopCounts.reduce(0) { total, entry in
+                guard let kind = TroopKind(rawValue: entry.key) else { return total }
+                return total + entry.value * kind.cropPerHour
+            }
+            let topTroop = village.troopCounts
+                .max(by: { $0.value < $1.value })
+                .flatMap { TroopKind(rawValue: $0.key) }
+            return VillageSummary(name: village.name, troops: troops, crop: crop, topTroop: topTroop)
+        }
+        .sorted { $0.crop > $1.crop }
+    }
+
+    private func villageRow(village: VillageSummary) -> some View {
+        let maxCrop = villagesSorted.first?.crop ?? 1
+        let ratio = CGFloat(village.crop) / CGFloat(max(1, maxCrop))
+
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.orange.opacity(0.1))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: village.topTroop?.categoryIcon ?? "house.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(village.topTroop?.tribeColor ?? .orange)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(village.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    HStack(spacing: 3) {
+                        Image(systemName: "leaf.fill")
+                            .font(.system(size: 8))
+                        Text("\(village.crop)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(.orange)
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(.systemGray5))
+                            .frame(height: 3)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.orange.opacity(0.5))
+                            .frame(width: geo.size.width * ratio, height: 3)
+                    }
+                }
+                .frame(height: 3)
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     // MARK: - Line Chart Card
@@ -173,7 +724,7 @@ struct TroopsOverviewView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "leaf.fill")
                         .font(.caption2)
-                    Text("\(totalCrop)/h")
+                    Text("\(totalCrop) Getreide/h")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .monospacedDigit()
@@ -397,26 +948,30 @@ struct TroopsOverviewView: View {
     // MARK: - Troop Row
 
     private func troopRow(kind: TroopKind, count: Int) -> some View {
-        HStack(spacing: 12) {
+        let maxCount = aggregatedCounts.first?.count ?? 1
+        let ratio = CGFloat(count) / CGFloat(max(1, maxCount))
+        let barColor = kind.isOffensive ? Color.red : kind.isDefensive ? Color.green : kind.tribeColor
+
+        return HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(kind.tribeColor.opacity(0.15))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
 
                 Image(systemName: kind.categoryIcon)
-                    .font(.system(size: 18))
+                    .font(.system(size: 16))
                     .foregroundStyle(kind.tribeColor)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(kind.uiName)
-                        .font(.body)
+                        .font(.subheadline)
                         .fontWeight(.semibold)
 
                     if kind.isOffensive {
                         Text("OFF")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 8, weight: .bold))
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Color.red.opacity(0.15))
@@ -424,36 +979,36 @@ struct TroopsOverviewView: View {
                             .clipShape(Capsule())
                     } else if kind.isDefensive {
                         Text("DEF")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 8, weight: .bold))
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Color.green.opacity(0.15))
                             .foregroundStyle(.green)
                             .clipShape(Capsule())
                     }
-                }
 
-                Text("\(count) Einheiten")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                    Spacer()
 
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                HStack(spacing: 3) {
-                    Image(systemName: "leaf.fill")
-                        .font(.caption2)
-                    Text("\(count * kind.cropPerHour)")
-                        .font(.headline)
+                    Text("\(count)")
+                        .font(.subheadline)
                         .fontWeight(.bold)
                         .monospacedDigit()
+                        .foregroundStyle(.primary)
                 }
-                .foregroundStyle(.orange)
 
-                Text("/h")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                // Anteilsbalken
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(.systemGray5))
+                            .frame(height: 4)
+
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(barColor.opacity(0.6))
+                            .frame(width: geo.size.width * ratio, height: 4)
+                    }
+                }
+                .frame(height: 4)
             }
         }
         .padding(.vertical, 4)
@@ -513,51 +1068,51 @@ struct TroopsOverviewView: View {
 
     private func historyRow(entry: TroopHistoryStore.DateTotal, diff: Int?) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(entry.date.formatted(.dateTime.day().month(.abbreviated).hour().minute()))
                     .font(.subheadline)
                     .fontWeight(.medium)
 
-                HStack(spacing: 8) {
-                    Text("\(entry.totalTroops)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    HStack(spacing: 2) {
-                        Circle().fill(Color.red).frame(width: 5, height: 5)
-                        Text("\(entry.offTroops)")
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.red)
-
-                    HStack(spacing: 2) {
-                        Circle().fill(Color.green).frame(width: 5, height: 5)
-                        Text("\(entry.deffTroops)")
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.green)
-
-                    HStack(spacing: 2) {
-                        Image(systemName: "leaf.fill")
-                            .font(.system(size: 8))
-                        Text("\(entry.totalCrop)/h")
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.orange)
+                HStack(spacing: 6) {
+                    miniStat(icon: "shield.fill", value: "\(entry.totalTroops)", color: Color(.systemGray))
+                    miniStat(icon: "flame.fill", value: "\(entry.offTroops)", color: .red)
+                    miniStat(icon: "shield.checkered", value: "\(entry.deffTroops)", color: .green)
+                    miniStat(icon: "leaf.fill", value: "\(entry.totalCrop) Getreide/h", color: .orange)
                 }
             }
 
             Spacer()
 
             if let diff {
-                Text(diff >= 0 ? "+\(diff)" : "\(diff)")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .monospacedDigit()
-                    .foregroundStyle(diff > 0 ? .green : diff < 0 ? .red : .secondary)
+                let color: Color = diff > 0 ? .green : diff < 0 ? .red : Color(.systemGray)
+                let icon = diff > 0 ? "arrow.up.right" : diff < 0 ? "arrow.down.right" : "minus"
+
+                HStack(spacing: 3) {
+                    Image(systemName: icon)
+                        .font(.system(size: 9, weight: .bold))
+                    Text(diff >= 0 ? "+\(diff)" : "\(diff)")
+                        .font(.system(size: 12, weight: .bold))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(color)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(color.opacity(0.12))
+                .clipShape(Capsule())
             }
         }
         .padding(.vertical, 6)
+    }
+
+    private func miniStat(icon: String, value: String, color: Color) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.system(size: 7))
+            Text(value)
+                .font(.system(size: 10))
+                .monospacedDigit()
+        }
+        .foregroundStyle(color)
     }
 
     // MARK: - Helpers

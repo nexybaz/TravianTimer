@@ -4,68 +4,178 @@ struct ContentView: View {
 
     enum AppTab: Hashable {
         case calls
-        case parser
-        case manuell
         case troops
+        case tools
         case settings
+        case search
     }
 
     @EnvironmentObject private var callsStore: CallsStore
+    @EnvironmentObject private var authService: AuthService
+    @StateObject private var notificationsStore = NotificationsStore.shared
+    @StateObject private var lockService = BiometricLockService.shared
     @State private var selection: AppTab = .calls
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @State private var showOnboarding = false
+    @AppStorage("hasSkippedVerification") private var hasSkippedVerification = false
+    @State private var showVerifySheet = false
+    @State private var showPlayerNameSheet = false
+    @State private var showTroopImport = false
+
+    // Search
+    @State private var searchText = ""
 
     var body: some View {
+        Group {
+            if !authService.hasCheckedSession {
+                // Splash — Session wird geprüft
+                splashView
+            } else if authService.isAuthenticated {
+                if lockService.isLocked && lockService.isEnabled {
+                    BiometricLockView()
+                } else {
+                    mainTabView
+                }
+            } else {
+                AuthView()
+                    .environmentObject(authService)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
+        .animation(.easeInOut(duration: 0.3), value: authService.hasCheckedSession)
+        .animation(.easeInOut(duration: 0.2), value: lockService.isLocked)
+    }
+
+    // MARK: - Splash View
+
+    private var splashView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "shield.checkered")
+                .font(.system(size: 56))
+                .foregroundStyle(.orange)
+
+            Text("TravianTimer")
+                .font(.title.bold())
+
+            ProgressView()
+                .controlSize(.regular)
+                .tint(.orange)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+
+    // MARK: - Main Tab View
+
+    private var mainTabView: some View {
         TabView(selection: $selection) {
 
-            CallsTabView()
-                .tabItem {
-                    Label("Calls", systemImage: "list.bullet")
-                }
-                .tag(AppTab.calls)
+            Tab("Calls", systemImage: "list.bullet", value: AppTab.calls) {
+                CallsTabView()
+            }
 
-            ParserTabView(selection: $selection)
-                .tabItem {
-                    Label("Parser", systemImage: "paperplane")
-                }
-                .tag(AppTab.parser)
+            Tab("Truppen", systemImage: "shield.fill", value: AppTab.troops) {
+                TroopsOverviewView()
+            }
 
-            ManualTabView(selection: $selection)
-                .tabItem {
-                    Label("Manuell", systemImage: "square.and.pencil")
-                }
-                .tag(AppTab.manuell)
+            Tab("Tools", systemImage: "wrench.and.screwdriver", value: AppTab.tools) {
+                ToolsTabView()
+            }
 
-            TroopsOverviewView()
-                .tabItem {
-                    Label("Truppen", systemImage: "shield.fill")
-                }
-                .tag(AppTab.troops)
+            Tab("Einstellungen", systemImage: "gearshape", value: AppTab.settings) {
+                SettingsView()
+            }
 
-            SettingsView()
-                .tabItem {
-                    Label("Einstellungen", systemImage: "gearshape")
+            Tab(value: AppTab.search, role: .search) {
+                NavigationStack {
+                    SearchResultsView(searchText: searchText)
+                        .navigationTitle("Suche")
+                        .navigationBarTitleDisplayMode(.inline)
                 }
-                .tag(AppTab.settings)
+                .searchable(text: $searchText, prompt: "Suchen")
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationManager.openCallNotificationName)) { _ in
             selection = .calls
         }
         .onAppear {
-            if !hasCompletedOnboarding {
-                showOnboarding = true
-            }
+            checkOnboardingState()
         }
-        .sheet(isPresented: $showOnboarding, onDismiss: {
+        .onChange(of: authService.profile) { _, _ in
+            checkOnboardingState()
+        }
+        .sheet(isPresented: $showVerifySheet, onDismiss: {
+            // Wenn nach Dismiss immer noch nicht verifiziert → User hat übersprungen
+            if authService.profile?.isVerified != true {
+                hasSkippedVerification = true
+            }
+            checkOnboardingState()
+        }) {
+            TravianVerifyView()
+                .environmentObject(authService)
+        }
+        .sheet(isPresented: $showPlayerNameSheet, onDismiss: {
+            checkOnboardingState()
+        }) {
+            PlayerNameView()
+                .environmentObject(authService)
+        }
+        .sheet(isPresented: $showTroopImport, onDismiss: {
             hasCompletedOnboarding = true
         }) {
-            VillageImportView(
-                onImport: { imported in
-                    for v in imported {
-                        ProfileStore.shared.upsert(v)
-                    }
-                }
+            TroopUpdateView()
+        }
+        .sheet(isPresented: $notificationsStore.showSheet) {
+            NotificationsSheetView()
+                .environmentObject(callsStore)
+                .environmentObject(authService)
+        }
+    }
+
+    // MARK: - Onboarding State Machine
+
+    private func checkOnboardingState() {
+        guard authService.isAuthenticated else { return }
+        guard let profile = authService.profile else { return }
+
+        if !profile.isVerified && !hasSkippedVerification {
+            // Verifizierung nur anzeigen wenn noch nicht übersprungen
+            if !showVerifySheet {
+                showVerifySheet = true
+            }
+        } else if profile.playerName == "Spieler" {
+            // Apple Sign-In User ohne Spielername → Name abfragen
+            showVerifySheet = false
+            if !showPlayerNameSheet {
+                showPlayerNameSheet = true
+            }
+        } else if !hasCompletedOnboarding {
+            showVerifySheet = false
+            showPlayerNameSheet = false
+            if !showTroopImport {
+                showTroopImport = true
+            }
+        }
+    }
+}
+
+// MARK: - Search Results (Platzhalter)
+
+private struct SearchResultsView: View {
+    let searchText: String
+
+    var body: some View {
+        if searchText.isEmpty {
+            ContentUnavailableView(
+                "Suchen",
+                systemImage: "magnifyingglass",
+                description: Text("Gib einen Suchbegriff ein")
+            )
+        } else {
+            ContentUnavailableView(
+                "Keine Ergebnisse",
+                systemImage: "magnifyingglass",
+                description: Text("Keine Treffer für \"\(searchText)\"")
             )
         }
     }

@@ -5,7 +5,8 @@ struct ParserView: View {
 
     @Binding var inputText: String
     let onPaste: () -> Void
-    let onEvaluate: () -> Void
+    /// Gibt `true` zurück wenn der Call erfolgreich erstellt wurde
+    let onEvaluate: () async -> Bool
 
     @FocusState private var isEditing: Bool
 
@@ -44,8 +45,12 @@ struct ParserView: View {
                         Spacer()
 
                         Button {
-                            onEvaluate()
-                            showSuccessAnimation()
+                            Task {
+                                let success = await onEvaluate()
+                                if success {
+                                    showSuccessAnimation()
+                                }
+                            }
                         } label: {
                             Label("Call erstellen", systemImage: "plus.circle.fill")
                         }

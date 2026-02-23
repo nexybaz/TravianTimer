@@ -1,29 +1,55 @@
 import Foundation
 import Combine
+import Supabase
+
+// MARK: - Supabase Snapshot Model (DB-Mapping)
+
+private struct SupabaseSnapshot: Codable {
+    let id: UUID?
+    let userId: String?
+    let date: Date
+    let villageName: String
+    let villageX: Int
+    let villageY: Int
+    let troopCounts: [String: Int]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId      = "user_id"
+        case date
+        case villageName = "village_name"
+        case villageX    = "village_x"
+        case villageY    = "village_y"
+        case troopCounts = "troop_counts"
+    }
+}
 
 // MARK: - Troop History Store
 
+@MainActor
 final class TroopHistoryStore: ObservableObject {
 
     static let shared = TroopHistoryStore()
 
     @Published var snapshots: [TroopSnapshot] = [] {
-        didSet { save() }
+        didSet { saveLocal() }
     }
 
     private let key = "troopHistoryV1"
+    private var client: SupabaseClient { SupabaseManager.client }
 
     private init() {
-        load()
+        loadLocal()
     }
 
     // MARK: - Record
 
     /// Speichert einen Snapshot pro Dorf mit dem aktuellen Zeitstempel.
+    /// Schreibt lokal + async nach Supabase.
     func recordSnapshot(villages: [VillageProfile]) {
         let now = Date()
         let newSnapshots = villages.compactMap { v -> TroopSnapshot? in
-            // Nur Dörfer mit Truppen erfassen
+            // Nur Doerfer mit Truppen erfassen
             let total = v.troopCounts.values.reduce(0, +)
             guard total > 0 else { return nil }
             return TroopSnapshot(
@@ -36,6 +62,10 @@ final class TroopHistoryStore: ObservableObject {
         }
         guard !newSnapshots.isEmpty else { return }
         snapshots.append(contentsOf: newSnapshots)
+
+        // Background Sync zu Supabase
+        let snapshotsToSync = newSnapshots
+        Task { await syncToSupabase(snapshotsToSync) }
     }
 
     // MARK: - Aggregation
@@ -86,21 +116,104 @@ final class TroopHistoryStore: ObservableObject {
             .sorted { $0.date < $1.date }
     }
 
-    // MARK: - Persistence
+    // MARK: - Logout / Clear
 
-    private func load() {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return }
-        guard let decoded = try? JSONDecoder().decode([TroopSnapshot].self, from: data) else { return }
-        snapshots = decoded
-    }
-
-    private func save() {
-        guard let data = try? JSONEncoder().encode(snapshots) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+    /// Logout: Lokalen Cache leeren ohne Supabase-Daten zu loeschen.
+    /// Beim naechsten Login werden die Snapshots aus Supabase neu geladen.
+    func handleLogout() {
+        snapshots = []
+        UserDefaults.standard.removeObject(forKey: key)
+        print("[TroopHistory] Logout — lokaler Cache geleert")
     }
 
     func clearHistory() {
         snapshots = []
         UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    // MARK: - Lokaler Cache (UserDefaults)
+
+    private func loadLocal() {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return }
+        guard let decoded = try? JSONDecoder().decode([TroopSnapshot].self, from: data) else { return }
+        snapshots = decoded
+    }
+
+    private func saveLocal() {
+        guard let data = try? JSONEncoder().encode(snapshots) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    // MARK: - Supabase Sync
+
+    /// Laedt alle Snapshots des aktuellen Users aus Supabase.
+    /// Wird nach Login aufgerufen um den Verlauf wiederherzustellen.
+    func loadFromSupabase() async {
+        guard let userId = currentUserId() else {
+            print("[TroopHistory] Kein User eingeloggt — skip Supabase Load")
+            return
+        }
+
+        do {
+            let dbSnapshots: [SupabaseSnapshot] = try await client
+                .from("troop_snapshots")
+                .select()
+                .eq("user_id", value: userId)
+                .order("date", ascending: true)
+                .execute()
+                .value
+
+            if !dbSnapshots.isEmpty {
+                let loaded = dbSnapshots.map { db in
+                    TroopSnapshot(
+                        date: db.date,
+                        villageName: db.villageName,
+                        villageX: db.villageX,
+                        villageY: db.villageY,
+                        troopCounts: db.troopCounts
+                    )
+                }
+                snapshots = loaded
+                print("[TroopHistory] \(loaded.count) Snapshots aus Supabase geladen")
+            } else {
+                print("[TroopHistory] Keine Snapshots in Supabase")
+            }
+        } catch {
+            print("[TroopHistory] Supabase Load fehlgeschlagen: \(error.localizedDescription)")
+            // Fallback: Lokaler Cache bleibt bestehen
+        }
+    }
+
+    /// Synchronisiert neue Snapshots nach Supabase.
+    private func syncToSupabase(_ newSnapshots: [TroopSnapshot]) async {
+        guard let userId = currentUserId() else { return }
+
+        for snap in newSnapshots {
+            do {
+                let payload = SupabaseSnapshot(
+                    id: nil,
+                    userId: userId,
+                    date: snap.date,
+                    villageName: snap.villageName,
+                    villageX: snap.villageX,
+                    villageY: snap.villageY,
+                    troopCounts: snap.troopCounts
+                )
+                try await client
+                    .from("troop_snapshots")
+                    .insert(payload)
+                    .execute()
+            } catch {
+                print("[TroopHistory] Supabase Sync fehlgeschlagen fuer '\(snap.villageName)': \(error.localizedDescription)")
+            }
+        }
+        print("[TroopHistory] \(newSnapshots.count) Snapshots nach Supabase synchronisiert")
+    }
+
+    // MARK: - Helpers
+
+    private func currentUserId() -> String? {
+        guard let session = try? client.auth.currentSession else { return nil }
+        return session.user.id.uuidString
     }
 }

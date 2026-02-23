@@ -19,9 +19,9 @@ struct VillageImportView: View {
     @State private var step: Step = .tribe
 
     // We persist the selected tribe globally, but we still ask here first.
-    @AppStorage("selectedTribe") private var selectedTribeRaw: String = SettingsView.Tribe.gauls.rawValue
+    @AppStorage("selectedTribe") private var selectedTribeRaw: String = Tribe.gauls.rawValue
     @AppStorage("selectedWorldId") private var selectedWorldId: String = ""
-    @State private var localTribeRaw: String = SettingsView.Tribe.gauls.rawValue
+    @State private var localTribeRaw: String = Tribe.gauls.rawValue
 
     // Inputs
     @State private var coordsInput: String = ""
@@ -222,7 +222,7 @@ struct VillageImportView: View {
             .padding(.horizontal)
 
             VStack(spacing: 10) {
-                ForEach(SettingsView.Tribe.allCases) { tribe in
+                ForEach(Tribe.allCases) { tribe in
                     Button {
                         localTribeRaw = tribe.rawValue
                     } label: {
@@ -270,7 +270,7 @@ struct VillageImportView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func tribeIcon(_ tribe: SettingsView.Tribe) -> String {
+    private func tribeIcon(_ tribe: Tribe) -> String {
         switch tribe {
         case .romans:  return "building.columns"
         case .gauls:   return "leaf"
@@ -350,7 +350,7 @@ struct VillageImportView: View {
                             .font(.subheadline)
                             .fontWeight(.semibold)
 
-                        Text("Öffne die Truppenübersicht, kopiere die Tabelle ab Dorfname bis Gesamt und füge sie hier ein.")
+                        Text("Öffne die Truppenübersicht, wähle den gesamten Seiteninhalt (Ctrl+A / ⌘A), kopiere ihn und füge ihn hier ein.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
 
@@ -378,7 +378,7 @@ struct VillageImportView: View {
                 )
 
             HStack {
-                Text("Tabelle ab 'Dorfname' bis 'Gesamt'.")
+                Text("Gesamte Seite kopieren (Ctrl+A → Ctrl+C)")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -635,7 +635,7 @@ struct VillageImportView: View {
         // Spaltenreihenfolge der Truppenübersicht (deutscher Client).
         // Matching über uiName, weil rawValue intern anders sein kann.
 
-        if selectedTribeRaw == SettingsView.Tribe.gauls.rawValue {
+        if selectedTribeRaw == Tribe.gauls.rawValue {
             let order = pick([
                 ["Phalanx", "Phalanxe"],
                 ["Schwertkämpfer"],
@@ -651,7 +651,7 @@ struct VillageImportView: View {
             if order.count == 10 { return order }
         }
 
-        if selectedTribeRaw == SettingsView.Tribe.romans.rawValue {
+        if selectedTribeRaw == Tribe.romans.rawValue {
             let order = pick([
                 ["Legionär"],
                 ["Prätorianer"],
@@ -667,7 +667,7 @@ struct VillageImportView: View {
             if order.count == 10 { return order }
         }
 
-        if selectedTribeRaw == SettingsView.Tribe.teutons.rawValue {
+        if selectedTribeRaw == Tribe.teutons.rawValue {
             let order = pick([
                 ["Keulenschwinger"],
                 ["Speerkämpfer"],
@@ -708,44 +708,51 @@ struct VillageImportView: View {
             .map { cleanLine($0) }
             .filter { !$0.isEmpty }
 
-        // Focus only on table area
-        var tableLines: [String] = []
-        var inTable = false
-        for l in lines {
-            let lower = l.lowercased()
-            if !inTable {
-                if lower == "dorfname" { inTable = true }
-                continue
-            }
-            if lower.hasPrefix("gesamt") { break }
-            tableLines.append(l)
-        }
+        // Tabelle erkennen (mehrsprachig, Ctrl+A tolerant)
+        let tableLines = extractTableLines(from: lines)
 
         if tableLines.isEmpty {
-            errorText = "Keine Tabelle gefunden. Bitte ab 'Dorfname' kopieren."
+            errorText = "Keine Tabelle gefunden. Öffne die Truppenübersicht und kopiere die gesamte Seite (Ctrl+A → Ctrl+C)."
             return
         }
 
         // Build name -> (counts, allowed)
         var parsedByName: [String: (counts: [String: Int], allowed: [String])] = [:]
+        let needWithoutHero = troopOrder.count   // 10
+        let needWithHero = troopOrder.count + 1  // 11
 
         for line in tableLines {
-            let tokens = line
+            if isNoiseLineForTroops(line) { continue }
+
+            // Tokens aufbereiten: Tabs → Space, splitten
+            let rawTokens = line
                 .replacingOccurrences(of: "\t", with: " ")
                 .split(whereSeparator: { $0 == " " })
                 .map(String.init)
 
-            if tokens.count < 3 { continue }
+            if rawTokens.count < 3 { continue }
 
-            // Table contains troop counts directly (no population column).
-            // Usually 10 troop columns; sometimes +1 hero column.
-            let needWithoutHero = troopOrder.count
-            let needWithHero = troopOrder.count + 1
+            // Phase 1: Bonus-Tokens entfernen, Slash-Format normalisieren
+            let cleaned = rawTokens.compactMap { token -> String? in
+                if token.hasPrefix("+"), Int(token.dropFirst()) != nil {
+                    return nil
+                }
+                if token.contains("/") {
+                    let parts = token.split(separator: "/", maxSplits: 1)
+                    if parts.count == 2, Int(parts[0]) != nil, Int(parts[1]) != nil {
+                        return String(parts[0])
+                    }
+                }
+                return token
+            }
 
+            if cleaned.count < 3 { continue }
+
+            // Phase 2: Von rechts Integers sammeln
             var ints: [Int] = []
-            var idx = tokens.count - 1
+            var idx = cleaned.count - 1
             while idx >= 0 && ints.count < needWithHero {
-                if let v = Int(tokens[idx]) {
+                if let v = Int(cleaned[idx]) {
                     ints.insert(v, at: 0)
                     idx -= 1
                 } else {
@@ -757,20 +764,16 @@ struct VillageImportView: View {
             let hasHero = (ints.count >= needWithHero)
             let numericTailCount = hasHero ? needWithHero : needWithoutHero
 
-            let nameTokens = tokens.prefix(max(0, tokens.count - numericTailCount))
+            let nameTokens = cleaned.prefix(max(0, cleaned.count - numericTailCount))
             let nameRaw = nameTokens.joined(separator: " ")
             let name = cleanLine(nameRaw)
             if name.isEmpty { continue }
 
             let tail = Array(ints.suffix(numericTailCount))
-
-            // First N values are the 10 troop columns.
-            let countsStart = 0
-            let countsEnd = countsStart + troopOrder.count
+            let countsEnd = troopOrder.count
             if tail.count < countsEnd { continue }
-            let unitCounts = Array(tail[countsStart..<countsEnd])
+            let unitCounts = Array(tail[0..<countsEnd])
 
-            // Optional hero is the last value (ignored for allowedTroops for now).
             let heroCount: Int? = (tail.count > troopOrder.count) ? tail.last : nil
 
             var countsByKey: [String: Int] = [:]
@@ -817,5 +820,89 @@ struct VillageImportView: View {
             let totalTroopTypes = mergedVillages.reduce(0) { $0 + $1.allowedTroops.count }
             successText = "\(mergedVillages.count) Dörfer mit \(totalTroopTypes) Truppentypen erkannt"
         }
+    }
+
+    // MARK: - Table extraction (Ctrl+A tolerant)
+
+    private func extractTableLines(from lines: [String]) -> [String] {
+        let headerMarkers: Set<String> = ["dorfname", "village name", "nom du village", "nome del villaggio", "nazwa wioski"]
+        let footerPrefixes = ["gesamt", "total", "totale", "suma"]
+
+        var tableLines: [String] = []
+        var inTable = false
+
+        for l in lines {
+            let lower = l.lowercased().trimmingCharacters(in: .whitespaces)
+
+            if !inTable {
+                if headerMarkers.contains(lower) {
+                    inTable = true
+                }
+                continue
+            }
+
+            if footerPrefixes.contains(where: { lower.hasPrefix($0) }) {
+                break
+            }
+
+            tableLines.append(l)
+        }
+
+        // Fallback: Zeilen mit genug Zahlen = wahrscheinlich Truppendaten
+        if tableLines.isEmpty {
+            tableLines = lines.filter { line in
+                countNumericTokens(in: line) >= 5
+            }
+        }
+
+        return tableLines
+    }
+
+    private func countNumericTokens(in line: String) -> Int {
+        let tokens = line
+            .replacingOccurrences(of: "\t", with: " ")
+            .split(whereSeparator: { $0 == " " })
+
+        var count = 0
+        for token in tokens {
+            let s = String(token)
+            if s.hasPrefix("+"), Int(s.dropFirst()) != nil { continue }
+            if s.contains("/") {
+                let parts = s.split(separator: "/", maxSplits: 1)
+                if parts.count == 2, Int(parts[0]) != nil, Int(parts[1]) != nil {
+                    count += 1
+                    continue
+                }
+            }
+            if Int(s) != nil { count += 1 }
+        }
+        return count
+    }
+
+    private func isNoiseLineForTroops(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        let noiseExact: Set<String> = [
+            "discord", "help center", "support", "settings", "logout",
+            "village name", "dorfname", "nom du village",
+            "barbar", "römer", "roemer", "gallier", "germanen",
+            "romans", "gauls", "teutons", "roman", "gaul", "teuton",
+            "overview", "übersicht", "uebersicht",
+            "troops", "truppen", "troupes",
+            "hero", "held", "héros",
+            "adventures", "abenteuer", "aventures",
+            "profile", "profil",
+            "messages", "nachrichten",
+            "reports", "berichte",
+            "map", "karte",
+            "resources", "ressourcen",
+            "building", "gebäude", "gebaeude",
+            "marketplace", "marktplatz",
+            "rally point", "versammlungsplatz",
+            "auction", "auktion",
+            "kingdom", "königreich", "koenigreich",
+        ]
+        let trimmed = lower.trimmingCharacters(in: .whitespaces)
+        if noiseExact.contains(trimmed) { return true }
+        return false
     }
 }
