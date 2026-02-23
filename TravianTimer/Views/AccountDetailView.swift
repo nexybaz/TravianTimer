@@ -316,7 +316,6 @@ struct AccountDetailView: View {
                 }
 
                 fealtyStepperView()
-                fealtyBonusView(fealty: userProfile.fealtyLevel, prestige: userProfile.prestigeLevel)
                 refreshButton()
             } header: {
                 Text("Travian")
@@ -374,28 +373,6 @@ struct AccountDetailView: View {
             Text(refreshMessage)
                 .font(.caption)
                 .foregroundStyle(refreshMessage.contains("Fehler") ? .red : .green)
-        }
-    }
-
-    @ViewBuilder
-    private func fealtyBonusView(fealty: Int, prestige: Int) -> some View {
-        let costPct = fealtyBuildingCostReduction(fealty: fealty, prestige: prestige)
-        let timePct = fealtyBuildingTimeReduction(fealty: fealty, prestige: prestige)
-
-        if costPct > 0 || timePct > 0 {
-            VStack(alignment: .leading, spacing: 4) {
-                if costPct > 0 {
-                    Label(String(format: "Baukosten  −%.1f%%", costPct), systemImage: "arrow.down.right")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                }
-                if timePct > 0 {
-                    Label(String(format: "Bauzeit  −%.1f%%", timePct), systemImage: "clock.arrow.circlepath")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                }
-            }
-            .padding(.vertical, 2)
         }
     }
 
@@ -613,26 +590,6 @@ struct AccountDetailView: View {
                 print("[AccountDetailView] savePrestigePoints Fehler: \(error.localizedDescription)")
             }
         }
-    }
-
-    /// Offizielle Baukosten-Reduktion: 0.5 * (fealtyLevel - 11 + prestigeBonus) / 100
-    private func fealtyBuildingCostReduction(fealty: Int, prestige: Int) -> Double {
-        guard fealty >= 12 else { return 0 }
-        let prestigeBonus: Double = prestige >= 12 ? 1.0 : 0.0
-        return 0.5 * (Double(fealty) - 11.0 + prestigeBonus)
-    }
-
-    /// Offizielle Bauzeit-Reduktion (switch wie im Spiel-Code)
-    private func fealtyBuildingTimeReduction(fealty: Int, prestige: Int) -> Double {
-        guard fealty >= 11 else { return 0 }
-        var reduction: Double
-        switch fealty {
-        case 11: reduction = 1.0
-        case 12: reduction = 1.5
-        default: reduction = Double(min(fealty, 20) - 11)
-        }
-        if prestige >= 11 { reduction += 1.0 }
-        return reduction
     }
 
     private func updateTroopMultiplier(worldId: String) async {
