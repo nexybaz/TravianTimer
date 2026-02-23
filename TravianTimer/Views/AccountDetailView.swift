@@ -189,122 +189,8 @@ struct AccountDetailView: View {
                     .padding(.vertical, 4)
                 }
 
-                // MARK: Travian-Verifizierung
-
-                Section("Travian") {
-                    if userProfile.isVerified {
-                        if let worldId = userProfile.worldId, !worldId.isEmpty {
-                            LabeledContent("Spielwelt", value: worldId.uppercased())
-                        }
-
-                        if let tag = userProfile.kingdomTag {
-                            LabeledContent("Kingdom", value: tag)
-                        }
-
-                        // Treue-Stufe (Kingdom-gebunden)
-                        Stepper(value: Binding(
-                            get: { authService.profile?.fealtyLevel ?? 0 },
-                            set: { newValue in
-                                Task { await updateFealty(level: newValue) }
-                            }
-                        ), in: 0...20) {
-                            HStack {
-                                Label("Treue-Stufe", systemImage: "star.fill")
-                                Spacer()
-                                Text("\(authService.profile?.fealtyLevel ?? 0)")
-                                    .fontWeight(.semibold)
-                                    .monospacedDigit()
-                            }
-                        }
-
-                        // Aktive Treue-Boni
-                        let costPct = fealtyBuildingCostReduction(fealty: userProfile.fealtyLevel, prestige: userProfile.prestigeLevel)
-                        let timePct = fealtyBuildingTimeReduction(fealty: userProfile.fealtyLevel, prestige: userProfile.prestigeLevel)
-
-                        if costPct > 0 || timePct > 0 {
-                            VStack(alignment: .leading, spacing: 4) {
-                                if costPct > 0 {
-                                    Label(String(format: "Baukosten  −%.1f%%", costPct), systemImage: "arrow.down.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.green)
-                                }
-                                if timePct > 0 {
-                                    Label(String(format: "Bauzeit  −%.1f%%", timePct), systemImage: "clock.arrow.circlepath")
-                                        .font(.caption)
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-
-                        Button {
-                            Task { await refreshTravianData() }
-                        } label: {
-                            HStack {
-                                if isRefreshing {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                }
-                                Label(
-                                    isRefreshing ? "Aktualisiere..." : "Daten aktualisieren",
-                                    systemImage: "arrow.clockwise"
-                                )
-                            }
-                        }
-                        .disabled(isRefreshing)
-
-                        if let refreshMessage {
-                            Text(refreshMessage)
-                                .font(.caption)
-                                .foregroundStyle(refreshMessage.contains("Fehler") ? .red : .green)
-                        }
-                    } else {
-                        Button {
-                            showVerifySheet = true
-                        } label: {
-                            Label("Travian-Account verknüpfen", systemImage: "link.badge.plus")
-                        }
-                    }
-                } footer: {
-                    if userProfile.isVerified {
-                        Text("Treue-Stufe gilt für dein aktuelles Kingdom und wird im Gebäude-Tool auf Baukosten und Bauzeiten angewendet.")
-                    }
-                }
-
-                // MARK: Prestige (Account-gebunden)
-
-                Section {
-                    Button {
-                        prestigeInput = "\(authService.profile?.prestigePoints ?? 0)"
-                        showPrestigeAlert = true
-                    } label: {
-                        HStack {
-                            Label("Prestige", systemImage: "crown.fill")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            let pts = userProfile.prestigePoints
-                            let level = userProfile.prestigeLevel
-                            if pts > 0 {
-                                Text("\(pts) Punkte → Stufe \(level)")
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                            } else {
-                                Text("Nicht gesetzt")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    Link(destination: URL(string: "https://support.kingdoms.com/de/support/solutions/articles/7000092677-der-weg-zum-prestige")!) {
-                        Label("Prestige-Stufen nachschauen", systemImage: "arrow.up.right.square")
-                            .font(.caption)
-                    }
-                } header: {
-                    Text("Prestige")
-                } footer: {
-                    Text("Prestige ist an deinen Travian-Account gebunden und gilt über alle Königreiche hinweg.")
-                }
+                travianSection(for: userProfile)
+                prestigeSection(for: userProfile)
 
                 // MARK: Verwaltung
 
@@ -412,6 +298,133 @@ struct AccountDetailView: View {
             }
         } message: {
             Text("Dies ist die letzte Warnung. Dein Account wird sofort und unwiderruflich gelöscht.")
+        }
+    }
+
+    // MARK: - Travian Section
+
+    @ViewBuilder
+    private func travianSection(for userProfile: UserProfile) -> some View {
+        Section("Travian") {
+            if userProfile.isVerified {
+                if let worldId = userProfile.worldId, !worldId.isEmpty {
+                    LabeledContent("Spielwelt", value: worldId.uppercased())
+                }
+
+                if let tag = userProfile.kingdomTag {
+                    LabeledContent("Kingdom", value: tag)
+                }
+
+                // Treue-Stufe (Kingdom-gebunden)
+                Stepper(value: Binding(
+                    get: { authService.profile?.fealtyLevel ?? 0 },
+                    set: { newValue in
+                        Task { await updateFealty(level: newValue) }
+                    }
+                ), in: 0...20) {
+                    HStack {
+                        Label("Treue-Stufe", systemImage: "star.fill")
+                        Spacer()
+                        Text("\(authService.profile?.fealtyLevel ?? 0)")
+                            .fontWeight(.semibold)
+                            .monospacedDigit()
+                    }
+                }
+
+                fealtyBonusView(fealty: userProfile.fealtyLevel, prestige: userProfile.prestigeLevel)
+
+                Button {
+                    Task { await refreshTravianData() }
+                } label: {
+                    HStack {
+                        if isRefreshing {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Label(
+                            isRefreshing ? "Aktualisiere..." : "Daten aktualisieren",
+                            systemImage: "arrow.clockwise"
+                        )
+                    }
+                }
+                .disabled(isRefreshing)
+
+                if let refreshMessage {
+                    Text(refreshMessage)
+                        .font(.caption)
+                        .foregroundStyle(refreshMessage.contains("Fehler") ? .red : .green)
+                }
+            } else {
+                Button {
+                    showVerifySheet = true
+                } label: {
+                    Label("Travian-Account verknüpfen", systemImage: "link.badge.plus")
+                }
+            }
+        } footer: {
+            if userProfile.isVerified {
+                Text("Treue-Stufe gilt für dein aktuelles Kingdom und wird im Gebäude-Tool auf Baukosten und Bauzeiten angewendet.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fealtyBonusView(fealty: Int, prestige: Int) -> some View {
+        let costPct = fealtyBuildingCostReduction(fealty: fealty, prestige: prestige)
+        let timePct = fealtyBuildingTimeReduction(fealty: fealty, prestige: prestige)
+
+        if costPct > 0 || timePct > 0 {
+            VStack(alignment: .leading, spacing: 4) {
+                if costPct > 0 {
+                    Label(String(format: "Baukosten  −%.1f%%", costPct), systemImage: "arrow.down.right")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+                if timePct > 0 {
+                    Label(String(format: "Bauzeit  −%.1f%%", timePct), systemImage: "clock.arrow.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    // MARK: - Prestige Section
+
+    @ViewBuilder
+    private func prestigeSection(for userProfile: UserProfile) -> some View {
+        Section {
+            Button {
+                prestigeInput = "\(authService.profile?.prestigePoints ?? 0)"
+                showPrestigeAlert = true
+            } label: {
+                HStack {
+                    Label("Prestige", systemImage: "crown.fill")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    let pts = userProfile.prestigePoints
+                    let level = userProfile.prestigeLevel
+                    if pts > 0 {
+                        Text("\(pts) Punkte → Stufe \(level)")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    } else {
+                        Text("Nicht gesetzt")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            Link(destination: URL(string: "https://support.kingdoms.com/de/support/solutions/articles/7000092677-der-weg-zum-prestige")!) {
+                Label("Prestige-Stufen nachschauen", systemImage: "arrow.up.right.square")
+                    .font(.caption)
+            }
+        } header: {
+            Text("Prestige")
+        } footer: {
+            Text("Prestige ist an deinen Travian-Account gebunden und gilt über alle Königreiche hinweg.")
         }
     }
 
