@@ -388,16 +388,18 @@ struct AccountDetailView: View {
                 HStack {
                     Text("Prestige")
                     Spacer()
-                    let pts = userProfile.prestigePoints
                     let level = userProfile.prestigeLevel
-                    if pts > 0 {
-                        Text("\(pts) Punkte → Stufe \(level)")
+                    if level > 0 {
+                        Text("Stufe \(level)")
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     } else {
                         Text("Nicht gesetzt")
                             .foregroundStyle(.secondary)
                     }
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
             .buttonStyle(.plain)
