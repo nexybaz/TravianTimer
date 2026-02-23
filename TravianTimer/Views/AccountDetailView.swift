@@ -1,5 +1,6 @@
 import SwiftUI
-import PhotosUIimport Supabaseimport PhotosUI
+import PhotosUI
+import Supabase
 
 // MARK: - Default Avatar Presets
 
