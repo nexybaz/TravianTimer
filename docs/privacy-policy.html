@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TravianTimer — Datenschutzerklaerung</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+  h1 { font-size: 1.5em; }
+  h2 { font-size: 1.2em; margin-top: 2em; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+  th { background: #f5f5f5; }
+  .updated { color: #888; font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<h1>Datenschutzerklaerung — TravianTimer</h1>
+<p class="updated">Stand: 23. Februar 2026</p>
+
+<h2>1. Verantwortlicher</h2>
+<p>Marc Freiburghaus<br>
+E-Mail: [DEINE E-MAIL EINTRAGEN]</p>
+
+<h2>2. Welche Daten werden erhoben</h2>
+<table>
+<tr><th>Datenkategorie</th><th>Konkrete Daten</th><th>Zweck</th></tr>
+<tr><td>Account</td><td>E-Mail-Adresse, Spielername</td><td>Anmeldung, Kontoverwaltung</td></tr>
+<tr><td>Benutzer-ID</td><td>Eindeutige UUID</td><td>Zuordnung der Daten</td></tr>
+<tr><td>Geraetekennung</td><td>APNs Push-Token</td><td>Push-Benachrichtigungen</td></tr>
+<tr><td>Spielinhalte</td><td>Doerfer, Truppen, Deff-Calls, Pledges</td><td>App-Kernfunktion</td></tr>
+<tr><td>Einstellungen</td><td>Benachrichtigungspraeferenzen, Favoriten</td><td>Personalisierung</td></tr>
+</table>
+
+<h2>3. Apple Sign-In</h2>
+<p>Bei Nutzung von "Mit Apple anmelden" erhalten wir ausschliesslich den von Apple bereitgestellten Identity-Token sowie optional den Namen und die E-Mail-Adresse. Wir haben keinen Zugriff auf das Apple-ID-Passwort.</p>
+
+<h2>4. Biometrische Daten</h2>
+<p>Die optionale App-Sperre nutzt Face ID oder Touch ID ueber das Apple-Betriebssystem. Es werden keine biometrischen Daten gespeichert oder uebertragen. Die Auswertung findet ausschliesslich auf dem Geraet statt.</p>
+
+<h2>5. Datenspeicherung</h2>
+<p>Alle Daten werden auf Servern von Supabase (EU-Region) gespeichert. Die Uebertragung erfolgt verschluesselt via HTTPS/TLS. Authentifizierungs-Tokens werden im iOS-Schluesselbund (Keychain) auf dem Geraet gespeichert.</p>
+
+<h2>6. Tracking und Analyse</h2>
+<p>Die App verwendet kein Tracking. Es werden keine Analyse-Dienste, Werbe-Netzwerke oder Drittanbieter-SDKs fuer Nutzerverfolgung eingesetzt. Es erfolgt keine Weitergabe von Daten an Werbetreibende.</p>
+
+<h2>7. Drittanbieterdienste</h2>
+<table>
+<tr><th>Dienst</th><th>Zweck</th><th>Datenzugriff</th></tr>
+<tr><td>Supabase</td><td>Backend, Datenbank, Authentifizierung</td><td>Alle App-Daten</td></tr>
+<tr><td>Apple Push Notification Service</td><td>Push-Benachrichtigungen</td><td>Geraete-Token</td></tr>
+<tr><td>Travian Kingdoms API</td><td>Spieler-Verifizierung, Weltdaten</td><td>Spieler-ID, Welt-ID</td></tr>
+</table>
+
+<h2>8. Discord-Integration</h2>
+<p>Die App kommuniziert nicht direkt mit Discord. Die Verbindung erfolgt ausschliesslich serverseitig ueber eine Supabase Edge Function. Dabei werden Spielername, Dorf und Truppeninformationen im Zusammenhang mit Deff-Calls uebermittelt.</p>
+
+<h2>9. Datenweitergabe</h2>
+<p>Personenbezogene Daten werden nicht an Dritte verkauft oder zu Werbezwecken weitergegeben. Eine Weitergabe erfolgt ausschliesslich an die unter Punkt 7 genannten Dienste im Rahmen der App-Funktionalitaet.</p>
+
+<h2>10. Account loeschen</h2>
+<p>Der Account kann jederzeit in den App-Einstellungen unter "Account" geloescht werden. Bei Loeschung werden alle gespeicherten Daten (Profil, Doerfer, Truppen, Pledges, Benachrichtigungen) unwiderruflich entfernt.</p>
+
+<h2>11. Deine Rechte (DSGVO)</h2>
+<p>Du hast das Recht auf Auskunft, Berichtigung, Loeschung und Datenportabilitaet. Anfragen an die oben genannte E-Mail-Adresse.</p>
+
+<h2>12. Aenderungen</h2>
+<p>Diese Datenschutzerklaerung kann angepasst werden. Die aktuelle Version ist immer ueber diesen Link erreichbar.</p>
+
+</body>
+</html>
