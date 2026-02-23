@@ -16,6 +16,7 @@ struct ParserTabView: View {
     @State private var state: ParserState = .parser
 
     var body: some View {
+        @Bindable var store = store
         switch state {
         case .parser:
             ParserView(
