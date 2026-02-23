@@ -578,6 +578,9 @@ struct AccountDetailView: View {
     private func savePrestigePoints() {
         guard let points = Int(prestigeInput), points >= 0 else { return }
         guard points != authService.profile?.prestigePoints else { return }
+        // Optimistic update — UI sofort aktualisieren
+        let oldPoints = authService.profile?.prestigePoints
+        authService.profile?.prestigePoints = points
         Task {
             guard let userId = authService.currentUserId else { return }
             do {
@@ -586,8 +589,9 @@ struct AccountDetailView: View {
                     .update(["prestige_points": points])
                     .eq("id", value: userId.uuidString)
                     .execute()
-                authService.profile?.prestigePoints = points
             } catch {
+                // Rollback bei Fehler
+                authService.profile?.prestigePoints = oldPoints ?? 0
                 print("[AccountDetailView] savePrestigePoints Fehler: \(error.localizedDescription)")
             }
         }
