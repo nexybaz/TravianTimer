@@ -386,8 +386,7 @@ struct AccountDetailView: View {
                 showPrestigeAlert = true
             } label: {
                 HStack {
-                    Label("Prestige", systemImage: "crown.fill")
-                        .foregroundStyle(.primary)
+                    Text("Prestige")
                     Spacer()
                     let pts = userProfile.prestigePoints
                     let level = userProfile.prestigeLevel
