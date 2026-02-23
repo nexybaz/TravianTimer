@@ -43,6 +43,10 @@ struct AccountDetailView: View {
     @State private var isDeletingAccount: Bool = false
     @State private var deleteError: String? = nil
 
+    // Prestige
+    @State private var showPrestigeAlert = false
+    @State private var prestigeInput = ""
+
     var body: some View {
         Form {
             if let userProfile = authService.profile {
@@ -145,9 +149,6 @@ struct AccountDetailView: View {
                         LabeledContent("Rolle", value: userProfile.role.displayName)
                     }
 
-                    if let tag = userProfile.kingdomTag {
-                        LabeledContent("Kingdom", value: tag)
-                    }
                 }
 
                 // MARK: Funktionen
@@ -196,6 +197,46 @@ struct AccountDetailView: View {
                             LabeledContent("Spielwelt", value: worldId.uppercased())
                         }
 
+                        if let tag = userProfile.kingdomTag {
+                            LabeledContent("Kingdom", value: tag)
+                        }
+
+                        // Treue-Stufe (Kingdom-gebunden)
+                        Stepper(value: Binding(
+                            get: { authService.profile?.fealtyLevel ?? 0 },
+                            set: { newValue in
+                                Task { await updateFealty(level: newValue) }
+                            }
+                        ), in: 0...20) {
+                            HStack {
+                                Label("Treue-Stufe", systemImage: "star.fill")
+                                Spacer()
+                                Text("\(authService.profile?.fealtyLevel ?? 0)")
+                                    .fontWeight(.semibold)
+                                    .monospacedDigit()
+                            }
+                        }
+
+                        // Aktive Treue-Boni
+                        let costPct = fealtyBuildingCostReduction(fealty: userProfile.fealtyLevel, prestige: userProfile.prestigeLevel)
+                        let timePct = fealtyBuildingTimeReduction(fealty: userProfile.fealtyLevel, prestige: userProfile.prestigeLevel)
+
+                        if costPct > 0 || timePct > 0 {
+                            VStack(alignment: .leading, spacing: 4) {
+                                if costPct > 0 {
+                                    Label(String(format: "Baukosten  −%.1f%%", costPct), systemImage: "arrow.down.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                                if timePct > 0 {
+                                    Label(String(format: "Bauzeit  −%.1f%%", timePct), systemImage: "clock.arrow.circlepath")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+
                         Button {
                             Task { await refreshTravianData() }
                         } label: {
@@ -224,6 +265,45 @@ struct AccountDetailView: View {
                             Label("Travian-Account verknüpfen", systemImage: "link.badge.plus")
                         }
                     }
+                } footer: {
+                    if userProfile.isVerified {
+                        Text("Treue-Stufe gilt für dein aktuelles Kingdom und wird im Gebäude-Tool auf Baukosten und Bauzeiten angewendet.")
+                    }
+                }
+
+                // MARK: Prestige (Account-gebunden)
+
+                Section {
+                    Button {
+                        prestigeInput = "\(authService.profile?.prestigePoints ?? 0)"
+                        showPrestigeAlert = true
+                    } label: {
+                        HStack {
+                            Label("Prestige", systemImage: "crown.fill")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            let pts = userProfile.prestigePoints
+                            let level = userProfile.prestigeLevel
+                            if pts > 0 {
+                                Text("\(pts) Punkte → Stufe \(level)")
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            } else {
+                                Text("Nicht gesetzt")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    Link(destination: URL(string: "https://support.kingdoms.com/de/support/solutions/articles/7000092677-der-weg-zum-prestige")!) {
+                        Label("Prestige-Stufen nachschauen", systemImage: "arrow.up.right.square")
+                            .font(.caption)
+                    }
+                } header: {
+                    Text("Prestige")
+                } footer: {
+                    Text("Prestige ist an deinen Travian-Account gebunden und gilt über alle Königreiche hinweg.")
                 }
 
                 // MARK: Verwaltung
@@ -305,6 +385,15 @@ struct AccountDetailView: View {
                 Button("Profilbild entfernen", role: .destructive) { deleteAvatar() }
             }
             Button("Abbrechen", role: .cancel) { }
+        }
+        // Prestige-Alert
+        .alert("Prestige-Punkte", isPresented: $showPrestigeAlert) {
+            TextField("Punktzahl", text: $prestigeInput)
+                .keyboardType(.numberPad)
+            Button("Speichern") { savePrestigePoints() }
+            Button("Abbrechen", role: .cancel) { }
+        } message: {
+            Text("Gib deine Gesamt-Prestigepunkte ein. Die Stufe wird automatisch berechnet.")
         }
         // Erster Alert: Warnung
         .alert("Account löschen?", isPresented: $showDeleteAlert) {
@@ -468,6 +557,60 @@ struct AccountDetailView: View {
         }
 
         isDeletingAccount = false
+    }
+
+    // MARK: - Treue / Prestige
+
+    private func updateFealty(level: Int) async {
+        guard let userId = authService.currentUserId else { return }
+        do {
+            try await SupabaseManager.client
+                .from("profiles")
+                .update(["fealty_level": level])
+                .eq("id", value: userId.uuidString)
+                .execute()
+            authService.profile?.fealtyLevel = level
+        } catch {
+            print("[AccountDetailView] updateFealty Fehler: \(error.localizedDescription)")
+        }
+    }
+
+    private func savePrestigePoints() {
+        guard let points = Int(prestigeInput), points >= 0 else { return }
+        guard points != authService.profile?.prestigePoints else { return }
+        Task {
+            guard let userId = authService.currentUserId else { return }
+            do {
+                try await SupabaseManager.client
+                    .from("profiles")
+                    .update(["prestige_points": points])
+                    .eq("id", value: userId.uuidString)
+                    .execute()
+                authService.profile?.prestigePoints = points
+            } catch {
+                print("[AccountDetailView] savePrestigePoints Fehler: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Offizielle Baukosten-Reduktion: 0.5 * (fealtyLevel - 11 + prestigeBonus) / 100
+    private func fealtyBuildingCostReduction(fealty: Int, prestige: Int) -> Double {
+        guard fealty >= 12 else { return 0 }
+        let prestigeBonus: Double = prestige >= 12 ? 1.0 : 0.0
+        return 0.5 * (Double(fealty) - 11.0 + prestigeBonus)
+    }
+
+    /// Offizielle Bauzeit-Reduktion (switch wie im Spiel-Code)
+    private func fealtyBuildingTimeReduction(fealty: Int, prestige: Int) -> Double {
+        guard fealty >= 11 else { return 0 }
+        var reduction: Double
+        switch fealty {
+        case 11: reduction = 1.0
+        case 12: reduction = 1.5
+        default: reduction = Double(min(fealty, 20) - 11)
+        }
+        if prestige >= 11 { reduction += 1.0 }
+        return reduction
     }
 
     private func updateTroopMultiplier(worldId: String) async {
