@@ -10,7 +10,7 @@ actor DeviceTokenService {
 
     static let shared = DeviceTokenService()
 
-    private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
 
     /// Der zuletzt registrierte Token (fuer spaeteres Cleanup bei Logout).
     private var currentToken: String?

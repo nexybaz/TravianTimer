@@ -4,8 +4,8 @@ import SwiftUI
 
 struct HeroToolView: View {
 
-    @EnvironmentObject private var authService: AuthService
-    @StateObject private var favorites = FavoritesStore.shared
+    @Environment(AuthService.self) var authService
+    @State private var favorites = FavoritesStore.shared
 
     var body: some View {
         List {

@@ -4,7 +4,7 @@ import SwiftUI
 
 struct ParserTabView: View {
 
-    @EnvironmentObject private var store: CallsStore
+    @Environment(CallsStore.self) var store
     @Environment(\.dismiss) private var dismiss
 
     enum ParserState {
@@ -103,7 +103,7 @@ struct ParserTabView: View {
                 ManualCallForm(onCreated: {
                     dismiss()
                 })
-                .environmentObject(store)
+                .environment(store)
                 .navigationTitle("Manuell erfassen")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

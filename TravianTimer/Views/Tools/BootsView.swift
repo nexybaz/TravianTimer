@@ -4,8 +4,8 @@ import SwiftUI
 
 struct BootsView: View {
 
-    @EnvironmentObject private var authService: AuthService
-    @StateObject private var tierService = ItemTierService.shared
+    @Environment(AuthService.self) var authService
+    @State private var tierService = ItemTierService.shared
 
     /// Vom User gewaehlte Stufe (nil = automatisch)
     @State private var selectedTier: Int? = nil

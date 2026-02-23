@@ -4,8 +4,8 @@ import SwiftUI
 
 struct CallsTabView: View {
 
-    @EnvironmentObject private var store: CallsStore
-    @EnvironmentObject private var authService: AuthService
+    @Environment(CallsStore.self) var store
+    @Environment(AuthService.self) var authService
 
     @State private var path = NavigationPath()
     @State private var showParser = false
@@ -17,7 +17,7 @@ struct CallsTabView: View {
                     notLoggedInView
                 } else if authService.profile?.isVerified != true {
                     VerificationRequiredView(feature: "Deff Calls")
-                        .environmentObject(authService)
+                        .environment(authService)
                 } else if store.isLoading && store.calls.isEmpty {
                     ProgressView("Lade Calls...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,13 +43,13 @@ struct CallsTabView: View {
             }
             .sheet(isPresented: $showParser) {
                 ParserTabView()
-                    .environmentObject(store)
+                    .environment(store)
             }
             .navigationDestination(for: UUID.self) { id in
                 if let call = store.calls.first(where: { $0.id == id }) {
                     let rowKey = store.pendingOpenRowKey
                     CallDetailView(call: call, initialExpandedRowKey: rowKey)
-                        .environmentObject(store)
+                        .environment(store)
                         .onAppear { store.pendingOpenRowKey = nil }
                 } else {
                     Text("Call nicht gefunden")

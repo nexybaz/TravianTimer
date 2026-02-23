@@ -1,29 +1,31 @@
 import Foundation
 import Combine
+import Observation
 import Supabase
 import Realtime
 
 // MARK: - Notifications Store (Supabase CRUD + Realtime)
 
 @MainActor
-final class NotificationsStore: ObservableObject {
+@Observable
+final class NotificationsStore {
 
     static let shared = NotificationsStore()
 
     // MARK: Published State
 
-    @Published var notifications: [NotificationItem] = []
-    @Published var preferences: NotificationPreferences?
-    @Published var isLoading: Bool = false
-    @Published var unreadCount: Int = 0
-    @Published var showSheet: Bool = false
+    var notifications: [NotificationItem] = []
+    var preferences: NotificationPreferences?
+    var isLoading: Bool = false
+    var unreadCount: Int = 0
+    var showSheet: Bool = false
 
     // MARK: Private
 
-    private var client: SupabaseClient { SupabaseManager.client }
-    private var notificationsChannel: RealtimeChannelV2?
-    private var realtimeTasks: [Task<Void, Never>] = []
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private var notificationsChannel: RealtimeChannelV2?
+    @ObservationIgnored private var realtimeTasks: [Task<Void, Never>] = []
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     // MARK: Init
 

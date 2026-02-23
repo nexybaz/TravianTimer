@@ -5,7 +5,7 @@ import AuthenticationServices
 
 struct AuthView: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
 
     enum Mode {
         case signIn

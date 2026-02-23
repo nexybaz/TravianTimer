@@ -4,8 +4,8 @@ import SwiftUI
 
 struct TroopsToolView: View {
 
-    @EnvironmentObject private var authService: AuthService
-    @StateObject private var favorites = FavoritesStore.shared
+    @Environment(AuthService.self) var authService
+    @State private var favorites = FavoritesStore.shared
 
     var body: some View {
         List {
@@ -158,7 +158,7 @@ struct TroopStatsView: View {
     let tribeName: String
     let units: [TroopUnit]
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
 
     /// Fealty-Level aus globalem Profil (fallback 0)
     private var fealtyLevel: Int {

@@ -4,8 +4,8 @@ import SwiftUI
 
 struct SettingsView: View {
 
-    @EnvironmentObject private var authService: AuthService
-    @StateObject private var lockService = BiometricLockService.shared
+    @Environment(AuthService.self) var authService
+    @State private var lockService = BiometricLockService.shared
 
     @State private var showAuthSheet: Bool = false
     @State private var showVerifySheet: Bool = false
@@ -23,11 +23,11 @@ struct SettingsView: View {
                         if authService.profile != nil {
                             NavigationLink {
                                 AccountDetailView()
-                                    .environmentObject(authService)
+                                    .environment(authService)
                             } label: {
                                 HStack(spacing: 16) {
                                     AvatarImage(size: 60)
-                                        .environmentObject(authService)
+                                        .environment(authService)
 
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(authService.profile?.playerName ?? "Account")
@@ -221,11 +221,11 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showAuthSheet) {
                 AuthView()
-                    .environmentObject(authService)
+                    .environment(authService)
             }
             .sheet(isPresented: $showVerifySheet) {
                 TravianVerifyView()
-                    .environmentObject(authService)
+                    .environment(authService)
             }
         }
     }

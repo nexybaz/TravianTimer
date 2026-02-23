@@ -5,7 +5,7 @@ import WebKit
 
 struct InfrastructureToolView: View {
 
-    @StateObject private var favorites = FavoritesStore.shared
+    @State private var favorites = FavoritesStore.shared
 
     private let buildingCostsFavId = FavoriteToolItem.infraBuildingCosts.rawValue
 
@@ -241,7 +241,7 @@ struct BuildingDetailView: View {
 
     let building: Building
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
 
     @State private var gameSpeed: Int = 1
     @State private var mainBuildingLevel: Int = 0

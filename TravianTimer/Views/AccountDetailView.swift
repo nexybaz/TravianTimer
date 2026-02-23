@@ -25,7 +25,7 @@ private enum AvatarPreset: String, CaseIterable, Identifiable {
 
 struct AccountDetailView: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
 
     @State private var showVerifySheet: Bool = false
     @State private var isRefreshing: Bool = false
@@ -231,7 +231,7 @@ struct AccountDetailView: View {
                     Section {
                         NavigationLink {
                             RoleManagementView()
-                                .environmentObject(authService)
+                                .environment(authService)
                         } label: {
                             Label("Mitglieder verwalten", systemImage: "person.2.badge.gearshape")
                         }
@@ -278,7 +278,7 @@ struct AccountDetailView: View {
         .onAppear { loadAvatar() }
         .sheet(isPresented: $showVerifySheet) {
             TravianVerifyView()
-                .environmentObject(authService)
+                .environment(authService)
         }
         .sheet(isPresented: $showPhotoPicker) {
             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {

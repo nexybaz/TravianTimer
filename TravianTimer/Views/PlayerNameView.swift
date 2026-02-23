@@ -4,7 +4,7 @@ import SwiftUI
 
 struct PlayerNameView: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
     @Environment(\.dismiss) private var dismiss
 
     @State private var playerName: String = ""

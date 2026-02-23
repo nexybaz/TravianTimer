@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Supabase
 
 // MARK: - Item Tier Service
@@ -6,18 +7,19 @@ import Supabase
 /// Ermittelt die aktuelle Gegenstandsstufe (Tier 1/2/3) basierend auf
 /// den Tier-Daten der Spielwelt aus der gameworlds-Tabelle.
 @MainActor
-final class ItemTierService: ObservableObject {
+@Observable
+final class ItemTierService {
 
     static let shared = ItemTierService()
 
-    @Published var currentTier: Int = 1
-    @Published var maxTier: Int = 1
-    @Published var tier2Date: Date?
-    @Published var tier3Date: Date?
-    @Published var worldSpeed: Int = 1
-    @Published var isLoaded: Bool = false
+    var currentTier: Int = 1
+    var maxTier: Int = 1
+    var tier2Date: Date?
+    var tier3Date: Date?
+    var worldSpeed: Int = 1
+    var isLoaded: Bool = false
 
-    private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
 
     private init() {}
 

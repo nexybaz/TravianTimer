@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 import Supabase
 import AuthenticationServices
 import CryptoKit
@@ -75,26 +75,27 @@ struct UserProfile: Codable, Sendable, Equatable {
 // MARK: - Auth Service
 
 @MainActor
-final class AuthService: ObservableObject {
+@Observable
+final class AuthService {
 
     static let shared = AuthService()
 
     // MARK: Published State
 
-    @Published var isAuthenticated: Bool = false
-    @Published var hasCheckedSession: Bool = false
-    @Published var currentUserId: UUID? = nil
-    @Published var currentRole: UserRole = .governor
-    @Published var profile: UserProfile? = nil
-    @Published var isLoading: Bool = false
-    @Published var errorMessage: String? = nil
+    var isAuthenticated: Bool = false
+    var hasCheckedSession: Bool = false
+    var currentUserId: UUID? = nil
+    var currentRole: UserRole = .governor
+    var profile: UserProfile? = nil
+    var isLoading: Bool = false
+    var errorMessage: String? = nil
 
     // MARK: Private
 
-    private var authStateTask: Task<Void, Never>?
-    private var currentNonce: String?
+    @ObservationIgnored private var authStateTask: Task<Void, Never>?
+    @ObservationIgnored private var currentNonce: String?
 
-    private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
 
     // MARK: Init
 

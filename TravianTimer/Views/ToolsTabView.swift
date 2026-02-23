@@ -4,7 +4,7 @@ import SwiftUI
 
 struct ToolsTabView: View {
 
-    @StateObject private var favorites = FavoritesStore.shared
+    @State private var favorites = FavoritesStore.shared
     @State private var selectedFavorite: FavoriteToolItem?
 
     private let columns = [
@@ -280,7 +280,7 @@ struct ToolPlaceholderView: View {
 
 /// Liest den Tribe auf dem MainActor und leitet an RightHandView weiter.
 private struct RightHandFavoriteWrapper: View {
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
 
     var body: some View {
         RightHandView(tribe: Tribe.from(profileTribe: authService.profile?.tribe))

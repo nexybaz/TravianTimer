@@ -7,14 +7,14 @@ import Supabase
 
 struct RoleManagementView: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
 
     @State private var members: [KingdomMember] = []
     @State private var isLoading: Bool = true
     @State private var errorMessage: String?
     @State private var isEditing: Bool = false
 
-    private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
 
     /// Nur Koenig/Admin duerfen Rollen aendern
     private var canChangeRoles: Bool {

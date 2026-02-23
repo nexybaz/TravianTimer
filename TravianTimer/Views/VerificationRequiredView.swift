@@ -6,7 +6,7 @@ import SwiftUI
 /// Wird verwendet wenn ein nicht-verifizierter User auf Calls oder Truppen zugreift.
 struct VerificationRequiredView: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
     @State private var showVerifySheet = false
 
     let feature: String
@@ -28,7 +28,7 @@ struct VerificationRequiredView: View {
         }
         .sheet(isPresented: $showVerifySheet) {
             TravianVerifyView()
-                .environmentObject(authService)
+                .environment(authService)
         }
     }
 }

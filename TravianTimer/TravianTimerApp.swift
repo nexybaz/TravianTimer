@@ -96,14 +96,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 struct TravianTimerApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var callsStore = CallsStore()
-    @StateObject private var authService = AuthService.shared
+    @State private var callsStore = CallsStore()
+    @State private var authService = AuthService.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(callsStore)
-                .environmentObject(authService)
+                .environment(callsStore)
+                .environment(authService)
                 .onOpenURL { url in
                     // Handle Supabase Auth Callback (E-Mail Bestaetigung, Magic Link, OAuth)
                     Task {

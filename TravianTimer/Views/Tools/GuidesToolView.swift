@@ -4,7 +4,7 @@ import SwiftUI
 
 struct GuidesToolView: View {
 
-    @StateObject private var favorites = FavoritesStore.shared
+    @State private var favorites = FavoritesStore.shared
 
     private let schnellsiedelFavId = FavoriteToolItem.guideSchnellsiedeln.rawValue
 

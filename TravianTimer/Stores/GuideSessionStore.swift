@@ -1,22 +1,24 @@
 import Foundation
+import Observation
 import Supabase
 import Realtime
 
 // MARK: - Guide Session Store
 
 @MainActor
-final class GuideSessionStore: ObservableObject {
+@Observable
+final class GuideSessionStore {
 
     static let shared = GuideSessionStore()
 
-    @Published var activeSession: GuideSession?
-    @Published var members: [SessionMember] = []
-    @Published var checkedStepIds: Set<String> = []
+    var activeSession: GuideSession?
+    var members: [SessionMember] = []
+    var checkedStepIds: Set<String> = []
 
-    private var client: SupabaseClient { SupabaseManager.client }
-    private var progressChannel: RealtimeChannelV2?
-    private var membersChannel: RealtimeChannelV2?
-    private var realtimeTasks: [Task<Void, Never>] = []
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private var progressChannel: RealtimeChannelV2?
+    @ObservationIgnored private var membersChannel: RealtimeChannelV2?
+    @ObservationIgnored private var realtimeTasks: [Task<Void, Never>] = []
 
     var isInSession: Bool { activeSession != nil }
 

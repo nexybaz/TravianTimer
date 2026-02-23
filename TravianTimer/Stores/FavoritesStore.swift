@@ -1,17 +1,19 @@
 import Foundation
+import Observation
 import Supabase
 
 // MARK: - Tool Favorites Store
 
 @MainActor
-final class FavoritesStore: ObservableObject {
+@Observable
+final class FavoritesStore {
 
     static let shared = FavoritesStore()
 
-    @Published var favoriteIds: Set<String> = []
+    var favoriteIds: Set<String> = []
 
-    private let baseKey = "toolFavorites"
-    private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private let baseKey = "toolFavorites"
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
 
     private init() {}
 

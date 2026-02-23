@@ -1,21 +1,22 @@
 import Foundation
-import Combine
+import Observation
 import Supabase
 
 // MARK: - Profile Store
 
 @MainActor
-final class ProfileStore: ObservableObject {
+@Observable
+final class ProfileStore {
 
     static let shared = ProfileStore()
 
-    @Published var villages: [VillageProfile] = [] {
+    var villages: [VillageProfile] = [] {
         didSet { save() }
     }
 
-    private let key = "profileVillagesV1"
-    private let migrationKey = "villagesMigratedToSupabase"
-    private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private let key = "profileVillagesV1"
+    @ObservationIgnored private let migrationKey = "villagesMigratedToSupabase"
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
 
     private init() {
         load()

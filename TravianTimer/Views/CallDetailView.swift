@@ -10,7 +10,7 @@ struct CallDetailView: View {
         case late = "Spaet"
     }
 
-    @EnvironmentObject private var store: CallsStore
+    @Environment(CallsStore.self) var store
     @Environment(\.openURL) private var openURL
 
     let call: CallItem

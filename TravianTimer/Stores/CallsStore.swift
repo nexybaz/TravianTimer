@@ -1,45 +1,47 @@
 import Foundation
 import UIKit
 import Combine
+import Observation
 import Supabase
 import Realtime
 
 // MARK: - Calls Store (Supabase CRUD + Realtime)
 
 @MainActor
-final class CallsStore: ObservableObject {
+@Observable
+final class CallsStore {
 
     // MARK: Published State
 
-    @Published var calls: [CallItem] = []
-    @Published var pledgesByCall: [UUID: [TroopPledge]] = [:]
-    @Published var isLoading: Bool = false
-    @Published var errorText: String? = nil
+    var calls: [CallItem] = []
+    var pledgesByCall: [UUID: [TroopPledge]] = [:]
+    var isLoading: Bool = false
+    var errorText: String? = nil
 
     // Parser input
-    @Published var inputText: String = ""
+    var inputText: String = ""
 
     // Deep link from notification
-    @Published var pendingOpenCallId: UUID? = nil
-    @Published var pendingOpenRowKey: String? = nil
+    var pendingOpenCallId: UUID? = nil
+    var pendingOpenRowKey: String? = nil
 
     // Player profile (start villages + troop selection)
-    @Published var profile = ProfileStore.shared
+    var profile = ProfileStore.shared
 
     // MARK: Private
 
-    private var client: SupabaseClient { SupabaseManager.client }
-    private var callsChannel: RealtimeChannelV2?
-    private var pledgesChannel: RealtimeChannelV2?
-    private var realtimeTasks: [Task<Void, Never>] = []
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private var callsChannel: RealtimeChannelV2?
+    @ObservationIgnored private var pledgesChannel: RealtimeChannelV2?
+    @ObservationIgnored private var realtimeTasks: [Task<Void, Never>] = []
 
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     /// Keys fuer Pledges die gerade optimistisch aktualisiert werden.
     /// Format: "callId|userId|villageName|troopKind"
     /// Realtime DELETE Events fuer diese Keys werden ignoriert,
     /// damit sie das optimistische Update nicht zerstoeren.
-    private var optimisticPledgeKeys = Set<String>()
+    @ObservationIgnored private var optimisticPledgeKeys = Set<String>()
 
     // MARK: Init
 

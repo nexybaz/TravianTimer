@@ -12,7 +12,7 @@ struct DefenseOverviewView: View {
 
     let call: CallItem
 
-    @EnvironmentObject private var store: CallsStore
+    @Environment(CallsStore.self) var store
 
     @State private var expandedCard: ExpandedCard?
 

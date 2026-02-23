@@ -4,7 +4,7 @@ import SwiftUI
 
 struct NotificationBellButton: View {
 
-    @StateObject private var store = NotificationsStore.shared
+    @State private var store = NotificationsStore.shared
 
     var body: some View {
         Button {
@@ -21,8 +21,8 @@ struct NotificationBellButton: View {
 
 struct NotificationsSheetView: View {
 
-    @StateObject private var store = NotificationsStore.shared
-    @EnvironmentObject private var authService: AuthService
+    @State private var store = NotificationsStore.shared
+    @Environment(AuthService.self) var authService
     @Environment(\.dismiss) private var dismiss
 
     @State private var path = NavigationPath()
@@ -212,12 +212,12 @@ struct NotificationRow: View {
 /// Falls der Call nicht im Store ist, wird ein Fallback angezeigt.
 struct CallDeepLinkView: View {
     let callId: UUID
-    @EnvironmentObject private var store: CallsStore
+    @Environment(CallsStore.self) var store
 
     var body: some View {
         if let call = store.calls.first(where: { $0.id == callId }) {
             CallDetailView(call: call, initialExpandedRowKey: nil)
-                .environmentObject(store)
+                .environment(store)
         } else {
             VStack(spacing: 12) {
                 Image(systemName: "doc.questionmark")

@@ -5,7 +5,7 @@ import SwiftUI
 struct SchnellsiedelGuideView: View {
 
     @AppStorage("guide_schnellsiedel_checked") private var checkedData: Data = Data()
-    @ObservedObject private var sessionStore = GuideSessionStore.shared
+    @Bindable private var sessionStore = GuideSessionStore.shared
     @State private var showResetConfirm = false
     @State private var ongoingExpanded = false
     @State private var showJoinSheet = false

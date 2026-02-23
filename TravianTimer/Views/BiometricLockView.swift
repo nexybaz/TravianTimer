@@ -6,7 +6,7 @@ import SwiftUI
 /// Erscheint wenn die App-Sperre aktiviert ist und der User sich noch nicht authentifiziert hat.
 struct BiometricLockView: View {
 
-    @StateObject private var lockService = BiometricLockService.shared
+    @State private var lockService = BiometricLockService.shared
 
     var body: some View {
         VStack(spacing: 32) {

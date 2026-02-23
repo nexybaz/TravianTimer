@@ -8,7 +8,7 @@ struct TroopUpdateView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
-    @StateObject private var profile = ProfileStore.shared
+    @State private var profile = ProfileStore.shared
     @AppStorage("selectedTribe") private var selectedTribeRaw: String = Tribe.gauls.rawValue
     @AppStorage("selectedWorldId") private var selectedWorldId: String = ""
 

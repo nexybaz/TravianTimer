@@ -14,7 +14,7 @@ func avatarFileURL(for userId: UUID) -> URL {
 /// Wird z.B. im Settings-Menuepunkt neben dem Spielernamen verwendet.
 struct AvatarImage: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
     @State private var avatarImage: UIImage?
 
     var size: CGFloat = 38
@@ -53,7 +53,7 @@ struct AvatarImage: View {
 /// Avatar-Button fuer die Toolbar — oeffnet ein kompaktes Account-Info-Sheet.
 struct AvatarButton: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
     @State private var avatarImage: UIImage?
     @State private var showSheet = false
 
@@ -79,7 +79,7 @@ struct AvatarButton: View {
         }
         .sheet(isPresented: $showSheet) {
             AccountQuickSheet()
-                .environmentObject(authService)
+                .environment(authService)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
@@ -102,7 +102,7 @@ struct AvatarButton: View {
 
 private struct AccountQuickSheet: View {
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
     @Environment(\.dismiss) private var dismiss
     @State private var showLogoutConfirm = false
 
@@ -116,7 +116,7 @@ private struct AccountQuickSheet: View {
 
                 VStack(spacing: 10) {
                     AvatarImage(size: 72)
-                        .environmentObject(authService)
+                        .environment(authService)
 
                     VStack(spacing: 4) {
                         HStack(spacing: 6) {

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import LocalAuthentication
 import UIKit
 
@@ -7,25 +8,26 @@ import UIKit
 /// Verwaltet die App-Sperre mit Face ID / Touch ID.
 /// Die App wird beim Start oder beim Zurückkehren aus dem Hintergrund gesperrt.
 @MainActor
-final class BiometricLockService: ObservableObject {
+@Observable
+final class BiometricLockService {
 
     static let shared = BiometricLockService()
 
-    // MARK: Published State
+    // MARK: State
 
     /// Ob der User aktuell gesperrt (= nicht authentifiziert) ist
-    @Published var isLocked: Bool = false
+    var isLocked: Bool = false
 
     /// Ob gerade eine Biometrie-Abfrage läuft
-    @Published var isAuthenticating: Bool = false
+    var isAuthenticating: Bool = false
 
     /// Fehlermeldung bei fehlgeschlagener Biometrie
-    @Published var errorMessage: String? = nil
+    var errorMessage: String? = nil
 
     // MARK: Settings
 
     /// Ob die App-Sperre aktiviert ist (persistiert in UserDefaults)
-    @Published var isEnabled: Bool = UserDefaults.standard.bool(forKey: "biometricLockEnabled") {
+    var isEnabled: Bool = UserDefaults.standard.bool(forKey: "biometricLockEnabled") {
         didSet { UserDefaults.standard.set(isEnabled, forKey: "biometricLockEnabled") }
     }
 

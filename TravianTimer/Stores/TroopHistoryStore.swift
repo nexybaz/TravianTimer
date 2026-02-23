@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 import Supabase
 
 // MARK: - Supabase Snapshot Model (DB-Mapping)
@@ -27,16 +27,17 @@ private struct SupabaseSnapshot: Codable {
 // MARK: - Troop History Store
 
 @MainActor
-final class TroopHistoryStore: ObservableObject {
+@Observable
+final class TroopHistoryStore {
 
     static let shared = TroopHistoryStore()
 
-    @Published var snapshots: [TroopSnapshot] = [] {
+    var snapshots: [TroopSnapshot] = [] {
         didSet { saveLocal() }
     }
 
-    private let key = "troopHistoryV1"
-    private var client: SupabaseClient { SupabaseManager.client }
+    @ObservationIgnored private let key = "troopHistoryV1"
+    @ObservationIgnored private var client: SupabaseClient { SupabaseManager.client }
 
     private init() {
         loadLocal()

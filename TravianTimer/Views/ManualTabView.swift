@@ -4,7 +4,7 @@ import SwiftUI
 
 struct ManualCallForm: View {
 
-    @EnvironmentObject private var store: CallsStore
+    @Environment(CallsStore.self) var store
     let onCreated: () -> Void
 
     @State private var titleText: String = ""

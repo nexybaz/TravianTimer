@@ -4,8 +4,8 @@ import SwiftUI
 
 struct TroopsOverviewView: View {
 
-    @StateObject private var profile = ProfileStore.shared
-    @StateObject private var history = TroopHistoryStore.shared
+    @State private var profile = ProfileStore.shared
+    @State private var history = TroopHistoryStore.shared
 
     @State private var typesExpanded = false
     @State private var historyExpanded = false
@@ -58,14 +58,14 @@ struct TroopsOverviewView: View {
 
     // MARK: - Body
 
-    @EnvironmentObject private var authService: AuthService
+    @Environment(AuthService.self) var authService
 
     var body: some View {
         NavigationStack {
             Group {
                 if authService.profile?.isVerified != true {
                     VerificationRequiredView(feature: "Truppen")
-                        .environmentObject(authService)
+                        .environment(authService)
                 } else if profile.villages.isEmpty || totalTroops == 0 {
                     emptyState
                 } else {

@@ -10,10 +10,10 @@ struct ContentView: View {
         case search
     }
 
-    @EnvironmentObject private var callsStore: CallsStore
-    @EnvironmentObject private var authService: AuthService
-    @StateObject private var notificationsStore = NotificationsStore.shared
-    @StateObject private var lockService = BiometricLockService.shared
+    @Environment(CallsStore.self) var callsStore
+    @Environment(AuthService.self) var authService
+    @State private var notificationsStore = NotificationsStore.shared
+    @State private var lockService = BiometricLockService.shared
     @State private var selection: AppTab = .calls
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -38,7 +38,7 @@ struct ContentView: View {
                 }
             } else {
                 AuthView()
-                    .environmentObject(authService)
+                    .environment(authService)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
@@ -112,13 +112,13 @@ struct ContentView: View {
             checkOnboardingState()
         }) {
             TravianVerifyView()
-                .environmentObject(authService)
+                .environment(authService)
         }
         .sheet(isPresented: $showPlayerNameSheet, onDismiss: {
             checkOnboardingState()
         }) {
             PlayerNameView()
-                .environmentObject(authService)
+                .environment(authService)
         }
         .sheet(isPresented: $showTroopImport, onDismiss: {
             hasCompletedOnboarding = true
@@ -127,8 +127,8 @@ struct ContentView: View {
         }
         .sheet(isPresented: $notificationsStore.showSheet) {
             NotificationsSheetView()
-                .environmentObject(callsStore)
-                .environmentObject(authService)
+                .environment(callsStore)
+                .environment(authService)
         }
     }
 
