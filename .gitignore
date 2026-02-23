@@ -23,6 +23,10 @@ supabase/.temp
 TravianTimer/.plan
 .claude/
 
+# iCloud sync duplicates
+*\ 2.*
+*\ 3.*
+
 # Misc
 *.swp
 *~
