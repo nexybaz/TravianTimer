@@ -133,6 +133,14 @@ final class AuthService {
                     await TroopHistoryStore.shared.loadFromSupabase()
                     // Tool-Favoriten aus Supabase laden
                     await FavoritesStore.shared.loadFromSupabase()
+                    // Hero-Konfiguration aus Supabase laden
+                    await HeroStore.shared.loadFromSupabase()
+                    // Avatar-Konfiguration aus Supabase laden
+                    await AvatarConfigStore.shared.loadFromSupabase()
+                    // Dorfplaene aus Supabase laden + verwaiste Plaene aufräumen
+                    await VillagePlanStore.shared.loadFromSupabase()
+                    let knownVillageIds = Set(ProfileStore.shared.villages.map { $0.id })
+                    VillagePlanStore.shared.cleanupOrphanedPlans(knownVillageIds: knownVillageIds)
                     // Benachrichtigungen laden + Realtime starten
                     await NotificationsStore.shared.loadNotifications()
                     await NotificationsStore.shared.loadPreferences()
@@ -149,7 +157,12 @@ final class AuthService {
                     // Lokale Caches leeren (bleiben in Supabase erhalten)
                     ProfileStore.shared.handleLogout()
                     TroopHistoryStore.shared.handleLogout()
+                    TroopUpdateStreakStore.shared.handleLogout()
                     FavoritesStore.shared.handleLogout()
+                    HeroStore.shared.handleLogout()
+                    AvatarConfigStore.shared.handleLogout()
+                    VillagePlanStore.shared.handleLogout()
+
                     GuideSessionStore.shared.handleLogout()
                     // Benachrichtigungen aufraeumen
                     await NotificationsStore.shared.handleLogout()
@@ -203,6 +216,10 @@ final class AuthService {
             // Profil + Villages sofort laden (nicht auf authStateChanges warten)
             await loadProfile()
             await TroopHistoryStore.shared.loadFromSupabase()
+            await HeroStore.shared.loadFromSupabase()
+            await VillagePlanStore.shared.loadFromSupabase()
+            let knownIds1 = Set(ProfileStore.shared.villages.map { $0.id })
+            VillagePlanStore.shared.cleanupOrphanedPlans(knownVillageIds: knownIds1)
             await NotificationsStore.shared.loadNotifications()
             await NotificationsStore.shared.loadPreferences()
             await NotificationsStore.shared.subscribeToRealtime()
@@ -291,6 +308,10 @@ final class AuthService {
                 // Profil + Villages sofort laden (nicht auf authStateChanges warten)
                 await loadProfile()
                 await TroopHistoryStore.shared.loadFromSupabase()
+                await HeroStore.shared.loadFromSupabase()
+                await VillagePlanStore.shared.loadFromSupabase()
+                let knownIds2 = Set(ProfileStore.shared.villages.map { $0.id })
+                VillagePlanStore.shared.cleanupOrphanedPlans(knownVillageIds: knownIds2)
                 await NotificationsStore.shared.loadNotifications()
                 await NotificationsStore.shared.loadPreferences()
                 await NotificationsStore.shared.subscribeToRealtime()
@@ -322,9 +343,24 @@ final class AuthService {
     // MARK: - Sign Out
 
     func signOut() {
+        // Lokalen Avatar-Cache löschen (bleibt in Supabase erhalten)
+        if let userId = currentUserId {
+            let url = avatarFileURL(for: userId)
+            try? FileManager.default.removeItem(at: url)
+        }
+
+        // Onboarding- & Profil-Flags zurücksetzen (damit neuer Account sauber startet)
+        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.set(false, forKey: "hasCompletedTroopImport")
+        UserDefaults.standard.set(false, forKey: "hasSkippedVerification")
+        UserDefaults.standard.set(false, forKey: "hasPlusAccount")
+
+        // Biometrie-Lock deaktivieren (gehört zum alten Account)
+        BiometricLockService.shared.isEnabled = false
+
         Task {
             try? await client.auth.signOut()
-            // authStateChanges kuemmert sich um State-Reset
+            // authStateChanges kümmert sich um Store-Resets
         }
     }
 
@@ -338,6 +374,9 @@ final class AuthService {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+
+        // Session auffrischen, damit der JWT nicht abgelaufen ist
+        _ = try await client.auth.session
 
         // Edge Function Response
         struct DeleteResponse: Codable {
@@ -378,7 +417,10 @@ final class AuthService {
         self.currentRole = .governor
         ProfileStore.shared.handleLogout()
         TroopHistoryStore.shared.handleLogout()
+        TroopUpdateStreakStore.shared.handleLogout()
         FavoritesStore.shared.handleLogout()
+        HeroStore.shared.handleLogout()
+        VillagePlanStore.shared.handleLogout()
         GuideSessionStore.shared.handleLogout()
         await NotificationsStore.shared.handleLogout()
         NotificationCenter.default.post(name: AuthService.didSignOutNotification, object: nil)

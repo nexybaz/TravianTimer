@@ -268,7 +268,7 @@ async function handleGuideProgress(body: any): Promise<Response> {
 // ============================================================
 
 async function handleNewCall(body: any): Promise<Response> {
-  const { call_id, kingdom_id, title, target_x, target_y, created_by } = body?.record ?? body;
+  const { call_id, kingdom_id, title, target_x, target_y, created_by, arrival } = body?.record ?? body;
 
   const callId = call_id ?? body?.record?.id;
   const kingdomId = kingdom_id ?? body?.record?.kingdom_id;
@@ -276,6 +276,7 @@ async function handleNewCall(body: any): Promise<Response> {
   const targetX = target_x ?? body?.record?.target_x;
   const targetY = target_y ?? body?.record?.target_y;
   const createdBy = created_by ?? body?.record?.created_by;
+  const arrivalRaw = arrival ?? body?.record?.arrival;
 
   if (!callId) {
     return new Response(JSON.stringify({ error: "call_id fehlt" }), {
@@ -350,7 +351,19 @@ async function handleNewCall(body: any): Promise<Response> {
   const jwt = await createAPNsJWT();
 
   // 5. Push an alle senden
-  const pushBody = `${callTitle} (${targetX}|${targetY})`;
+  let pushBody = callTitle;
+  if (arrivalRaw) {
+    // Ankunftszeit in Europe/Berlin formatieren (HH:MM)
+    const arrivalDate = new Date(arrivalRaw);
+    const timeStr = arrivalDate.toLocaleString("de-DE", {
+      timeZone: "Europe/Berlin",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    pushBody += ` — Ankunft vor ${timeStr}`;
+  } else {
+    pushBody += ` (${targetX}|${targetY})`;
+  }
   let sentCount = 0;
   let failedCount = 0;
 

@@ -8,23 +8,26 @@ struct InfrastructureToolView: View {
     @State private var favorites = FavoritesStore.shared
 
     private let buildingCostsFavId = FavoriteToolItem.infraBuildingCosts.rawValue
+    private let resourceParserFavId = FavoriteToolItem.infraResourceParser.rawValue
+    private let villagePlannerFavId = FavoriteToolItem.infraVillagePlanner.rawValue
+    private let upgradeCalcFavId = FavoriteToolItem.infraUpgradeCalc.rawValue
 
     var body: some View {
         List {
             NavigationLink {
-                BuildingCostsView()
+                BuildingsView()
             } label: {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Baukosten")
+                        Text("Gebäude")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                        Text("Kosten, Bauzeit & Boni aller Gebäude")
+                        Text("Infos, Kosten & Bauzeiten aller Gebäude")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 } icon: {
-                    Image(systemName: "hammer.fill")
+                    Image(systemName: "building.2.fill")
                         .font(.title3)
                         .foregroundStyle(.white)
                         .frame(width: 36, height: 36)
@@ -53,6 +56,135 @@ struct InfrastructureToolView: View {
                 }
                 .tint(.orange)
             }
+
+            NavigationLink {
+                ResourceParserView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Ressourcen-Parser")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("Produktionsraten aus dem Spiel importieren")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "leaf.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.green.gradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .contextMenu {
+                Button {
+                    withAnimation { favorites.toggle(resourceParserFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(resourceParserFavId) ? "Aus Favoriten entfernen" : "An Tools anheften",
+                        systemImage: favorites.isFavorite(resourceParserFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    withAnimation { favorites.toggle(resourceParserFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(resourceParserFavId) ? "Lösen" : "Anheften",
+                        systemImage: favorites.isFavorite(resourceParserFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+                .tint(.orange)
+            }
+
+            NavigationLink {
+                VillagePlannerListView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Dorfplaner")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("Gebäude-Layout für Dörfer planen")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "square.grid.3x3.topleft.filled")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.purple.gradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .contextMenu {
+                Button {
+                    withAnimation { favorites.toggle(villagePlannerFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(villagePlannerFavId) ? "Aus Favoriten entfernen" : "An Tools anheften",
+                        systemImage: favorites.isFavorite(villagePlannerFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    withAnimation { favorites.toggle(villagePlannerFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(villagePlannerFavId) ? "Lösen" : "Anheften",
+                        systemImage: favorites.isFavorite(villagePlannerFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+                .tint(.orange)
+            }
+
+            NavigationLink {
+                UpgradeCalculatorView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Ausbau-Rechner")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("Optimale Ausbau-Reihenfolge berechnen")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.teal.gradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .contextMenu {
+                Button {
+                    withAnimation { favorites.toggle(upgradeCalcFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(upgradeCalcFavId) ? "Aus Favoriten entfernen" : "An Tools anheften",
+                        systemImage: favorites.isFavorite(upgradeCalcFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    withAnimation { favorites.toggle(upgradeCalcFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(upgradeCalcFavId) ? "Lösen" : "Anheften",
+                        systemImage: favorites.isFavorite(upgradeCalcFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+                .tint(.orange)
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Infrastruktur")
@@ -60,9 +192,9 @@ struct InfrastructureToolView: View {
     }
 }
 
-// MARK: - Baukosten (Gebaeude-Liste)
+// MARK: - Gebaeude (Gebaeude-Liste)
 
-struct BuildingCostsView: View {
+struct BuildingsView: View {
 
     @State private var expandedCategories: Set<BuildingCategory> = []
 
@@ -82,7 +214,7 @@ struct BuildingCostsView: View {
             .padding(.bottom, 32)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("Baukosten")
+        .navigationTitle("Gebäude")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -235,17 +367,37 @@ private struct BuildingListRow: View {
     }
 }
 
-// MARK: - Building Detail (WebView)
+// MARK: - Building Detail
 
 struct BuildingDetailView: View {
 
     let building: Building
 
     @Environment(AuthService.self) var authService
+    @AppStorage("hasPlusAccount") private var hasPlusAccount: Bool = false
 
     @State private var gameSpeed: Int = 1
     @State private var mainBuildingLevel: Int = 0
-    @State private var isLoading: Bool = true
+    @State private var showCosts: Bool = false
+    @State private var selectedBonusLevel: Int = 1
+
+    /// Building-IDs deren Bonus-Wert durch Plus Account um +25% steigt
+    private static let plusAffectedBuildingIds: Set<Int> = [
+        1, 2, 3, 4,       // Holzfäller, Lehmgrube, Eisenmine, Getreidefeld
+        10, 11,            // Lager, Kornspeicher
+        38, 39,            // Grosser Kornspeicher, Grosses Lager
+        46,                // Heilzelt
+    ]
+
+    /// Hat Plus Account Einfluss auf den Bonus dieses Gebaeudes?
+    private var isPlusAffected: Bool {
+        hasPlusAccount && Self.plusAffectedBuildingIds.contains(building.id)
+    }
+
+    /// Wendet Plus-Account-Bonus (+25%) auf einen Bonuswert an
+    private func applyPlusBonus(_ value: Double) -> Double {
+        isPlusAffected ? value * 1.25 : value
+    }
 
     /// Fealty-Level aus globalem Profil (fallback 0)
     private var fealtyLevel: Int {
@@ -258,7 +410,6 @@ struct BuildingDetailView: View {
     }
 
     /// Gebäudekosten-Reduktion durch Treue (Level 12+)
-    /// Offizielle Formel: g = 1 - (0.5 * (fealtyLevel - 11 + prestigeBonus)) / 100
     private var fealtyCostReduction: Double {
         guard fealtyLevel >= 12 else { return 0.0 }
         let prestigeBonus: Double = prestigeLevel >= 12 ? 1.0 : 0.0
@@ -267,7 +418,6 @@ struct BuildingDetailView: View {
     }
 
     /// Bauzeit-Reduktion durch Treue (Level 11+)
-    /// Offizielle Formel aus ue(): Level 11→1%, 12→1.5%, 13+→(level-11)%, Prestige→+1%
     private var fealtyTimeReduction: Double {
         guard fealtyLevel >= 11 else { return 0.0 }
         var reduction: Double
@@ -280,155 +430,383 @@ struct BuildingDetailView: View {
         return reduction / 100.0
     }
 
-    private var webURL: URL? {
-        URL(string: "https://tk-kb.kingdoms.com/en-US/buildings/\(building.id)")
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // ── Gebaeude-Info Header ──
+                buildingHeader
+
+                Divider()
+
+                // ── Beschreibung ──
+                buildingDescription
+
+                // ── Bonus-Picker (Stufe → Wert) ──
+                bonusLevelPicker
+
+                Divider()
+
+                // ── Voraussetzungen ──
+                if !building.prerequisites.isEmpty {
+                    prerequisitesRow
+                    Divider()
+                }
+
+                // ── Mehr erfahren Link ──
+                infoLink
+
+                Divider()
+                    .padding(.top, 4)
+
+                // ── Baukosten (aufklappbar) ──
+                costsSection
+            }
+            .padding(.bottom, 32)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(building.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // ── Konfigurations-Leiste ──
-            VStack(spacing: 8) {
-                // Spielgeschwindigkeit
-                HStack {
-                    Text("Geschwindigkeit")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    HStack(spacing: 4) {
-                        ForEach([1, 2, 3, 5], id: \.self) { speed in
-                            Button {
-                                gameSpeed = speed
-                            } label: {
-                                Text("\(speed)×")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(gameSpeed == speed ? .white : .primary)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(gameSpeed == speed ? Color.accentColor : Color(.systemGray5))
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
+    // MARK: - Header
 
-                // HG-Stufe
-                HStack {
-                    Image(systemName: "hammer.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Hauptgebäude")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Stepper(value: $mainBuildingLevel, in: 0...20) {
-                        Text("Stufe \(mainBuildingLevel)")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .monospacedDigit()
-                    }
-                    .fixedSize()
-                }
+    @ViewBuilder
+    private var buildingHeader: some View {
+        HStack(spacing: 14) {
+            Image(systemName: building.icon)
+                .font(.title)
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 52)
+                .background(building.category.color.gradient)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                // Treue-Level (global aus Profil, einstellbar in Einstellungen)
-                if fealtyLevel > 0 || prestigeLevel > 0 {
-                    HStack {
-                        Image(systemName: "star.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Treue \(fealtyLevel)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(building.name)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text("Level 1–\(building.maxLevel)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
-                        if prestigeLevel > 0 {
-                            Image(systemName: "crown.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text("Prestige \(prestigeLevel)")
+            Spacer()
+
+            if let tribe = building.tribe {
+                Text(tribe)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(tribeColor(tribe))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+    }
+
+    // MARK: - Beschreibung
+
+    @ViewBuilder
+    private var buildingDescription: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(building.description)
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            // Detail-Hinweise
+            if !building.detailNotes.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(building.detailNotes, id: \.self) { note in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "info.circle.fill")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        if fealtyCostReduction > 0 {
-                            Text(String(format: "Kosten −%.1f%%", fealtyCostReduction * 100))
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.green)
+                                .foregroundStyle(.blue)
+                                .padding(.top, 2)
+                            Text(note)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
                         }
                     }
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(.systemGroupedBackground))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.systemBackground))
+    }
 
-            Divider()
+    // MARK: - Bonus-Picker (Stufe waehlen → Wert anzeigen)
 
-            // ── Gebaeude-Info Header ──
-            HStack(spacing: 12) {
-                Image(systemName: building.icon)
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(building.category.color.gradient)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+    /// Hat dieses Gebaeude stufenabhaengige Bonus-Werte?
+    private var hasBonusProgression: Bool {
+        guard building.bonusLabel != nil else { return false }
+        return building.levels.contains(where: { $0.bonusValue != 0 })
+    }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(building.name)
-                        .font(.headline)
-                    Text(building.shortDescription)
+    @ViewBuilder
+    private var bonusLevelPicker: some View {
+        if hasBonusProgression, let label = building.bonusLabel {
+            let unit = building.bonusUnit ?? ""
+            let currentLevel = building.levels.first(where: { $0.level == selectedBonusLevel })
+
+            VStack(spacing: 10) {
+                // Wert-Anzeige gross
+                if let lvl = currentLevel {
+                    let displayValue = applyPlusBonus(lvl.bonusValue)
+                    HStack(spacing: 8) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .foregroundStyle(.green)
+                        Text(label)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(formatBonusValue(displayValue, unit: unit))
+                            .font(.system(.title2, design: .rounded))
+                            .fontWeight(.bold)
+                            .foregroundStyle(.green)
+                            .contentTransition(.numericText())
+                    }
+
+                    // Plus-Account Hinweis
+                    if isPlusAffected {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(.yellow)
+                            Text("Plus Account +25%")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("Basis: \(formatBonusValue(lvl.bonusValue, unit: unit))")
+                                .foregroundStyle(.tertiary)
+                        }
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                    }
                 }
 
-                Spacer()
-
-                if let tribe = building.tribe {
-                    Text(tribe)
+                // Stufen-Slider
+                HStack(spacing: 8) {
+                    Text("Stufe")
                         .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(tribeColor(tribe))
-                        .clipShape(Capsule())
+                        .foregroundStyle(.secondary)
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(selectedBonusLevel) },
+                            set: { selectedBonusLevel = Int($0) }
+                        ),
+                        in: 1...Double(building.maxLevel),
+                        step: 1
+                    )
+                    .tint(.green)
+
+                    Text("\(selectedBonusLevel)")
+                        .font(.system(.subheadline, design: .rounded))
+                        .fontWeight(.bold)
+                        .monospacedDigit()
+                        .frame(width: 28, alignment: .trailing)
                 }
             }
             .padding()
             .background(Color(.systemBackground))
+            .animation(.snappy(duration: 0.15), value: selectedBonusLevel)
+        }
+    }
 
-            Divider()
+    private func formatBonusValue(_ value: Double, unit: String) -> String {
+        if value == value.rounded() {
+            return "\(Int(value))\(unit)"
+        }
+        return String(format: "%.1f\(unit)", value)
+    }
 
-            // ── Voraussetzungen ──
-            if !building.prerequisites.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "lock.open.fill")
+    // MARK: - Voraussetzungen
+
+    @ViewBuilder
+    private var prerequisitesRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lock.open.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+
+            FlowLayout(spacing: 6) {
+                ForEach(building.prerequisites, id: \.self) { prereq in
+                    Text(prereq)
                         .font(.caption)
-                        .foregroundStyle(.orange)
-                    Text(building.prerequisites.joined(separator: " · "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .background(Color(.secondarySystemGroupedBackground))
-                Divider()
             }
 
-            // ── Daten-Tabelle ──
-            BuildingLevelsTable(
-                building: building,
-                gameSpeed: gameSpeed,
-                mainBuildingLevel: mainBuildingLevel,
-                fealtyCostReduction: fealtyCostReduction,
-                fealtyTimeReduction: fealtyTimeReduction
-            )
+            Spacer()
         }
-        .navigationTitle(building.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+    }
+
+    // MARK: - Info Link
+
+    @ViewBuilder
+    private var infoLink: some View {
+        if let url = URL(string: building.infoURL) {
+            Link(destination: url) {
+                HStack {
+                    Image(systemName: "safari.fill")
+                        .foregroundStyle(.blue)
+                    Text("Mehr auf kingdoms.com")
+                        .font(.subheadline)
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .background(Color(.systemBackground))
+            }
+        }
+    }
+
+    // MARK: - Baukosten Section
+
+    @ViewBuilder
+    private var costsSection: some View {
+        VStack(spacing: 0) {
+            // Toggle-Button
+            Button {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showCosts.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "tablecells.fill")
+                        .foregroundStyle(.blue)
+                    Text("Baukosten & Bauzeiten")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(showCosts ? 180 : 0))
+                }
+                .padding()
+            }
+            .buttonStyle(.plain)
+            .background(Color(.systemBackground))
+
+            if showCosts {
+                Divider()
+                    .padding(.leading, 16)
+
+                // Konfigurations-Leiste
+                costsConfiguration
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemBackground))
+
+                Divider()
+
+                // Tabelle
+                BuildingLevelsTable(
+                    building: building,
+                    gameSpeed: gameSpeed,
+                    mainBuildingLevel: mainBuildingLevel,
+                    fealtyCostReduction: fealtyCostReduction,
+                    fealtyTimeReduction: fealtyTimeReduction
+                )
+                .background(Color(.systemBackground))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+        .padding(.top, 12)
+    }
+
+    // MARK: - Konfigurations-Leiste
+
+    @ViewBuilder
+    private var costsConfiguration: some View {
+        VStack(spacing: 8) {
+            // Spielgeschwindigkeit
+            HStack {
+                Text("Geschwindigkeit")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                HStack(spacing: 4) {
+                    ForEach([1, 2, 3, 5], id: \.self) { speed in
+                        Button {
+                            gameSpeed = speed
+                        } label: {
+                            Text("\(speed)\u{00D7}")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(gameSpeed == speed ? .white : .primary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(gameSpeed == speed ? Color.accentColor : Color(.systemGray5))
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            // HG-Stufe
+            HStack {
+                Image(systemName: "hammer.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Hauptgebäude")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Stepper(value: $mainBuildingLevel, in: 0...20) {
+                    Text("Stufe \(mainBuildingLevel)")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .monospacedDigit()
+                }
+                .fixedSize()
+            }
+
+            // Treue-Level
+            if fealtyLevel > 0 || prestigeLevel > 0 {
+                HStack {
+                    Image(systemName: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Treue \(fealtyLevel)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if prestigeLevel > 0 {
+                        Image(systemName: "crown.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("Prestige \(prestigeLevel)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    if fealtyCostReduction > 0 {
+                        Text(String(format: "Kosten \u{2212}%.1f%%", fealtyCostReduction * 100))
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.green)
+                    }
+                }
+            }
+        }
     }
 
     private func tribeColor(_ tribe: String) -> Color {
@@ -438,6 +816,48 @@ struct BuildingDetailView: View {
         case "Gallier":  return .green
         default:         return .gray
         }
+    }
+}
+
+// MARK: - Flow Layout (fuer Voraussetzungs-Pills)
+
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = arrangeSubviews(proposal: proposal, subviews: subviews)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrangeSubviews(proposal: ProposedViewSize(width: bounds.width, height: bounds.height), subviews: subviews)
+        for (index, position) in result.positions.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrangeSubviews(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+        let maxWidth = proposal.width ?? .infinity
+        var positions: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            positions.append(CGPoint(x: x, y: y))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+            totalHeight = y + rowHeight
+        }
+
+        return (CGSize(width: maxWidth, height: totalHeight), positions)
     }
 }
 
@@ -458,25 +878,22 @@ struct BuildingLevelsTable: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                // Header
-                levelHeaderRow
+        LazyVStack(spacing: 0) {
+            // Header
+            levelHeaderRow
 
-                // Daten
-                ForEach(building.levels) { level in
-                    levelRow(level)
-                    if level.level < building.maxLevel {
-                        Divider().padding(.leading, 40)
-                    }
-                }
-
-                // Summe
-                if building.levels.count > 1 {
-                    sumRow
+            // Daten
+            ForEach(building.levels) { level in
+                levelRow(level)
+                if level.level < building.maxLevel {
+                    Divider().padding(.leading, 40)
                 }
             }
-            .padding(.bottom, 32)
+
+            // Summe
+            if building.levels.count > 1 {
+                sumRow
+            }
         }
     }
 
@@ -719,10 +1136,14 @@ struct Building: Identifiable, Hashable {
     let category: BuildingCategory
     let icon: String
     let shortDescription: String
+    let description: String        // Ausfuehrliche Gebaeude-Beschreibung
+    let detailNotes: [String]      // Zusaetzliche Detail-Hinweise (Mechaniken, Besonderheiten)
+    let infoURL: String            // Link zur kingdoms.com Support-Seite
     let tribe: String?             // nil = alle Voelker
     let maxLevel: Int
     let prerequisites: [String]
     let bonusLabel: String?        // z.B. "Produktion", "Kapazität", nil = kein Bonus
+    let bonusUnit: String?         // z.B. "/h", " Einheiten", "%" — Einheit fuer Bonus-Anzeige
     let levels: [BuildingLevel]
 
     // Hashable / Equatable via ID
@@ -749,9 +1170,17 @@ extension Building {
         id: 1, name: "Holzfäller", category: .resources,
         icon: "tree.fill",
         shortDescription: "Produziert Holz",
+        description: "Der Holzfäller fällt Bäume und produziert Holz. Holz ist eine der vier Grundressourcen und wird für nahezu alle Gebäude und Truppen benötigt. Die Produktion steigt von 5/h (Stufe 1) bis 2'500/h (Stufe 20).",
+        detailNotes: [
+            "Kann durch Sägewerk (+25%) und Oasen-Bonus weiter gesteigert werden.",
+            "Jedes Dorf hat 4 Holzfäller-Felder (ausser 15er-Getreidefelder).",
+            "Gold-Bonus +25% Ressourcenproduktion möglich.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087783",
         tribe: nil, maxLevel: 20,
         prerequisites: [],
         bonusLabel: "Produktion",
+        bonusUnit: "/h",
         levels: makeLevels(costs: [
             (40,100,50,60,2,1,24), (65,165,85,100,3,1,108),
             (110,280,140,165,4,2,360), (185,465,235,280,5,2,1440),
@@ -770,9 +1199,17 @@ extension Building {
         id: 2, name: "Lehmgrube", category: .resources,
         icon: "square.stack.3d.up.fill",
         shortDescription: "Produziert Lehm",
+        description: "In der Lehmgrube wird Lehm abgebaut. Lehm ist eine der vier Grundressourcen und wird besonders für den Bau von Gebäuden benötigt. Die Produktion steigt von 5/h (Stufe 1) bis 2'500/h (Stufe 20).",
+        detailNotes: [
+            "Kann durch Lehmbrennerei (+25%) und Oasen-Bonus weiter gesteigert werden.",
+            "Jedes Dorf hat 4 Lehmgruben-Felder (ausser 15er-Getreidefelder).",
+            "Gold-Bonus +25% Ressourcenproduktion möglich.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087784",
         tribe: nil, maxLevel: 20,
         prerequisites: [],
         bonusLabel: "Produktion",
+        bonusUnit: "/h",
         levels: makeLevels(costs: [
             (80,40,80,50,2,1,22), (135,65,135,85,3,1,99),
             (225,110,225,140,4,2,330), (375,185,375,235,5,2,1320),
@@ -791,9 +1228,17 @@ extension Building {
         id: 3, name: "Eisenmine", category: .resources,
         icon: "diamond.fill",
         shortDescription: "Produziert Eisen",
+        description: "In der Eisenmine wird Eisenerz gefördert. Eisen wird vor allem für die Ausbildung von Truppen und den Bau militärischer Gebäude benötigt. Die Produktion steigt von 5/h (Stufe 1) bis 2'500/h (Stufe 20).",
+        detailNotes: [
+            "Kann durch Eisenschmelze (+25%) und Oasen-Bonus weiter gesteigert werden.",
+            "Jedes Dorf hat 4 Eisenminen-Felder (ausser 15er-Getreidefelder).",
+            "Gold-Bonus +25% Ressourcenproduktion möglich.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087785",
         tribe: nil, maxLevel: 20,
         prerequisites: [],
         bonusLabel: "Produktion",
+        bonusUnit: "/h",
         levels: makeLevels(costs: [
             (100,80,30,60,3,1,30), (165,135,50,100,5,1,135),
             (280,225,85,165,7,2,450), (465,375,140,280,9,2,1800),
@@ -812,9 +1257,19 @@ extension Building {
         id: 4, name: "Getreidefeld", category: .resources,
         icon: "leaf.fill",
         shortDescription: "Produziert Getreide",
+        description: "Das Getreidefeld produziert Getreide (Weizen). Getreide ist die wichtigste Ressource — jeder Einwohner und jede Truppe verbraucht Getreide. Die Produktion steigt von 5/h (Stufe 1) bis 2'500/h (Stufe 20).",
+        detailNotes: [
+            "Kann durch Getreidemühle (+25%) und Bäckerei (+25%) auf insgesamt +50% gesteigert werden.",
+            "Oasen mit Getreide-Bonus bringen zusätzliche Prozente.",
+            "15er-Getreidefelder haben 15 Felder statt 6 — ideal für Offensivdörfer.",
+            "Getreideproduktion minus Bevölkerung = freies Getreide für Truppen.",
+            "Gold-Bonus +25% Ressourcenproduktion möglich.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087786",
         tribe: nil, maxLevel: 20,
         prerequisites: [],
         bonusLabel: "Produktion",
+        bonusUnit: "/h",
         levels: makeLevels(costs: [
             (75,90,85,0,0,1,20), (125,150,140,0,0,1,90),
             (210,250,235,0,0,2,300), (350,420,395,0,0,2,1200),
@@ -833,9 +1288,17 @@ extension Building {
         id: 5, name: "Sägewerk", category: .resources,
         icon: "gearshape.2.fill",
         shortDescription: "+25% Holzproduktion",
+        description: "Das Sägewerk steigert die gesamte Holzproduktion des Dorfes um bis zu 25%. Der Bonus wirkt auf die Summe aller Holzfäller im Dorf.",
+        detailNotes: [
+            "Stufe 1: +5%, Stufe 2: +10%, Stufe 3: +15%, Stufe 4: +20%, Stufe 5: +25%.",
+            "Nur einmal pro Dorf baubar.",
+            "Der Bonus wirkt multiplikativ mit Oasen-Boni und Gold-Bonus.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087787",
         tribe: nil, maxLevel: 5,
         prerequisites: ["Holzfäller 10", "Hauptgebäude 5"],
-        bonusLabel: "Bonus %",
+        bonusLabel: "Bonus",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (520,380,290,90,4,1,480), (935,685,520,160,6,1,1500),
             (1685,1230,940,290,8,2,3300), (3035,2215,1690,525,10,2,8400),
@@ -847,9 +1310,17 @@ extension Building {
         id: 6, name: "Lehmbrennerei", category: .resources,
         icon: "flame.fill",
         shortDescription: "+25% Lehmproduktion",
+        description: "Die Lehmbrennerei steigert die gesamte Lehmproduktion des Dorfes um bis zu 25%. Der Bonus wirkt auf die Summe aller Lehmgruben im Dorf.",
+        detailNotes: [
+            "Stufe 1: +5%, Stufe 2: +10%, Stufe 3: +15%, Stufe 4: +20%, Stufe 5: +25%.",
+            "Nur einmal pro Dorf baubar.",
+            "Der Bonus wirkt multiplikativ mit Oasen-Boni und Gold-Bonus.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087788",
         tribe: nil, maxLevel: 5,
         prerequisites: ["Lehmgrube 10", "Hauptgebäude 5"],
-        bonusLabel: "Bonus %",
+        bonusLabel: "Bonus",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (440,480,320,50,3,1,480), (790,865,575,90,5,1,1500),
             (1425,1555,1035,160,7,2,3300), (2565,2800,1865,290,9,2,8400),
@@ -861,9 +1332,17 @@ extension Building {
         id: 7, name: "Eisenschmelze", category: .resources,
         icon: "bolt.fill",
         shortDescription: "+25% Eisenproduktion",
+        description: "Die Eisenschmelze steigert die gesamte Eisenproduktion des Dorfes um bis zu 25%. Der Bonus wirkt auf die Summe aller Eisenminen im Dorf.",
+        detailNotes: [
+            "Stufe 1: +5%, Stufe 2: +10%, Stufe 3: +15%, Stufe 4: +20%, Stufe 5: +25%.",
+            "Nur einmal pro Dorf baubar.",
+            "Der Bonus wirkt multiplikativ mit Oasen-Boni und Gold-Bonus.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087789",
         tribe: nil, maxLevel: 5,
         prerequisites: ["Eisenmine 10", "Hauptgebäude 5"],
-        bonusLabel: "Bonus %",
+        bonusLabel: "Bonus",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (200,450,510,120,6,1,480), (360,810,920,215,9,1,1500),
             (650,1460,1650,390,12,2,3300), (1165,2625,2975,700,15,2,8400),
@@ -875,9 +1354,17 @@ extension Building {
         id: 8, name: "Getreidemühle", category: .resources,
         icon: "circle.grid.cross.fill",
         shortDescription: "+25% Getreideproduktion",
+        description: "Die Getreidemühle steigert die gesamte Getreideproduktion des Dorfes um bis zu 25%. Zusammen mit der Bäckerei ergibt das insgesamt +50% Getreideproduktion.",
+        detailNotes: [
+            "Stufe 1: +5%, Stufe 2: +10%, Stufe 3: +15%, Stufe 4: +20%, Stufe 5: +25%.",
+            "Kombinierbar mit Bäckerei für insgesamt +50% auf Getreide.",
+            "Nur einmal pro Dorf baubar. Keine Hauptgebäude-Voraussetzung.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087790",
         tribe: nil, maxLevel: 5,
         prerequisites: ["Getreidefeld 5"],
-        bonusLabel: "Bonus %",
+        bonusLabel: "Bonus",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (500,440,380,1240,3,1,480), (900,790,685,2230,5,1,1500),
             (1620,1425,1230,4020,7,2,3300), (2915,2565,2215,7230,9,2,8400),
@@ -889,9 +1376,17 @@ extension Building {
         id: 9, name: "Bäckerei", category: .resources,
         icon: "birthday.cake.fill",
         shortDescription: "+25% Getreideproduktion",
+        description: "Die Bäckerei steigert die Getreideproduktion um weitere 25%. Zusammen mit der Getreidemühle ergibt das einen Gesamtbonus von +50% — unverzichtbar für grosse Armeen und Offensivdörfer.",
+        detailNotes: [
+            "Stufe 1: +5%, Stufe 2: +10%, Stufe 3: +15%, Stufe 4: +20%, Stufe 5: +25%.",
+            "Setzt Getreidemühle Stufe 5 voraus — erst danach baubar.",
+            "Gesamtbonus mit Getreidemühle: +50% Getreideproduktion.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087791",
         tribe: nil, maxLevel: 5,
         prerequisites: ["Getreidefeld 10", "Hauptgebäude 5", "Getreidemühle 5"],
-        bonusLabel: "Bonus %",
+        bonusLabel: "Bonus",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (1200,1480,870,1600,4,1,780), (2160,2665,1565,2880,6,1,1800),
             (3890,4795,2820,5185,8,2,3600), (7000,8630,5075,9330,10,2,8700),
@@ -916,9 +1411,18 @@ extension Building {
         id: 15, name: "Hauptgebäude", category: .infrastructure,
         icon: "hammer.fill",
         shortDescription: "Reduziert Bauzeit",
+        description: "Das Hauptgebäude ist das zentrale Verwaltungsgebäude jedes Dorfes. Je höher seine Stufe, desto schneller werden neue Gebäude errichtet. Auf Stufe 20 werden Gebäude in etwa der halben Zeit gebaut.",
+        detailNotes: [
+            "Stufe 1: 96.4% der Bauzeit, Stufe 10: 71.9%, Stufe 20: 49.8%.",
+            "Ab Stufe 10 können Gebäude abgerissen werden.",
+            "Im Hauptgebäude wird auch der Abriss-Countdown angezeigt.",
+            "Jedes Dorf startet mit einem Hauptgebäude auf Stufe 1.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087753",
         tribe: nil, maxLevel: 20,
         prerequisites: [],
-        bonusLabel: "Bauzeit %",
+        bonusLabel: "Bauzeit",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (70,40,60,20,2,2,32), (95,55,80,25,3,3,243),
             (125,70,105,35,4,3,518), (165,95,140,45,5,4,972),
@@ -937,9 +1441,18 @@ extension Building {
         id: 10, name: "Lager", category: .infrastructure,
         icon: "shippingbox.fill",
         shortDescription: "Lagert Holz, Lehm, Eisen",
+        description: "Das Lager speichert Holz, Lehm und Eisen. Überschüssige Ressourcen gehen verloren, wenn die Kapazität erreicht ist. Die Kapazität steigt von 1'200 (Stufe 1) bis 80'000 (Stufe 20) pro Ressource.",
+        detailNotes: [
+            "Lagert Holz, Lehm und Eisen — aber NICHT Getreide (dafür Kornspeicher).",
+            "Mehrere Lager im selben Dorf sind möglich — Kapazitäten addieren sich.",
+            "Grundkapazität ohne Lager: 800 pro Ressource.",
+            "Grosses Lager (nur WW-Dorf) hat dreifache Kapazität pro Stufe.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087754",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 1"],
         bonusLabel: "Kapazität",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (140,180,100,0,1,1,34), (185,240,135,0,2,1,259),
             (250,320,175,0,3,2,552), (330,425,235,0,4,2,1035),
@@ -958,9 +1471,18 @@ extension Building {
         id: 11, name: "Kornspeicher", category: .infrastructure,
         icon: "basket.fill",
         shortDescription: "Lagert Getreide",
+        description: "Der Kornspeicher lagert Getreide. Die Kapazität steigt von 1'200 (Stufe 1) bis 80'000 (Stufe 20). Besonders wichtig für Offensivdörfer mit vielen Truppen und hohem Getreideverbrauch.",
+        detailNotes: [
+            "Lagert nur Getreide — für Holz, Lehm und Eisen braucht es ein Lager.",
+            "Mehrere Kornspeicher im selben Dorf sind möglich — Kapazitäten addieren sich.",
+            "Grundkapazität ohne Kornspeicher: 800 Getreide.",
+            "Grosser Kornspeicher (nur WW-Dorf) hat dreifache Kapazität pro Stufe.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087755",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 1"],
         bonusLabel: "Kapazität",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (80,100,70,20,1,1,33), (105,135,95,25,2,1,248),
             (140,175,125,35,3,2,528), (190,235,165,45,4,2,990),
@@ -979,9 +1501,18 @@ extension Building {
         id: 17, name: "Marktplatz", category: .infrastructure,
         icon: "storefront.fill",
         shortDescription: "Ermöglicht Handel",
+        description: "Der Marktplatz ermöglicht den Handel mit anderen Spielern und den Ressourcentransport zwischen eigenen Dörfern. Pro Stufe wird ein Händler freigeschaltet (max. 20 Händler auf Stufe 20).",
+        detailNotes: [
+            "Händlerkapazität: Römer 500, Germanen 1'000, Gallier 750 pro Händler.",
+            "Handelskontor erhöht Kapazität pro Händler zusätzlich.",
+            "NPC-Handel: Ressourcen sofort tauschen (kostet Gold).",
+            "Händlergeschwindigkeit: Römer 16, Germanen 12, Gallier 24 Felder/h.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087757",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 3", "Lager 1"],
         bonusLabel: "Händler",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (80,70,120,70,4,4,34), (100,90,155,90,6,4,252),
             (130,115,195,115,8,5,538), (170,145,250,145,10,6,1008),
@@ -1000,9 +1531,18 @@ extension Building {
         id: 28, name: "Handelskontor", category: .infrastructure,
         icon: "cart.fill",
         shortDescription: "Erhöht Händlerkapazität",
+        description: "Das Handelskontor erhöht die Transportkapazität der Händler um bis zu 200% (Stufe 20). Pro Stufe +10% Kapazität. Benötigt einen voll ausgebauten Marktplatz (Stufe 20) und Stall Stufe 10.",
+        detailNotes: [
+            "Stufe 1: +10%, Stufe 10: +100%, Stufe 20: +200% Händlerkapazität.",
+            "Bonus wirkt auf alle Händler des Dorfes.",
+            "Beispiel Römer: 500 Basis → 1'500 auf Stufe 20.",
+            "Beispiel Germanen: 1'000 Basis → 3'000 auf Stufe 20.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087765",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Marktplatz 20", "Stall 10"],
-        bonusLabel: "Bonus %",
+        bonusLabel: "Bonus",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (1400,1330,1200,400,3,4,367), (1790,1700,1535,510,5,4,800),
             (2295,2180,1965,655,7,5,1366), (2935,2790,2515,840,9,6,2298),
@@ -1021,9 +1561,18 @@ extension Building {
         id: 18, name: "Botschaft", category: .infrastructure,
         icon: "flag.fill",
         shortDescription: "Diplomatische Beziehungen",
+        description: "Die Botschaft ermöglicht den Beitritt zu einem Königreich und diplomatische Beziehungen. Auf bestimmten Stufen können Oasen annektiert werden, die Ressourcen-Boni liefern.",
+        detailNotes: [
+            "Stufe 1: 1 Oase annektierbar, Stufe 10: 2 Oasen, Stufe 20: 3 Oasen.",
+            "Oasen geben +25% oder +50% Bonus auf eine Ressource.",
+            "Botschaft Stufe 1 reicht für den Beitritt zu einem Königreich.",
+            "Wird für den Bau von Schatzkammer und Palast benötigt.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087758",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 1"],
         bonusLabel: "Oasen",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (180,130,150,80,3,5,35), (930,890,930,320,5,6,266),
             (1240,1185,1240,425,7,7,566), (1645,1575,1645,565,9,8,1062),
@@ -1042,9 +1591,18 @@ extension Building {
         id: 25, name: "Residenz", category: .infrastructure,
         icon: "house.lodge.fill",
         shortDescription: "Schützt vor Eroberung",
+        description: "Die Residenz schützt das Dorf vor feindlichen Eroberungen und ermöglicht die Ausbildung von Siedlern und Senatoren/Häuptlingen/Stammesführern. In jedem Dorf kann entweder Residenz oder Palast stehen.",
+        detailNotes: [
+            "Stufe 10: Ausbildung von Siedlern (3 nötig für neues Dorf) möglich.",
+            "Stufe 10/20: Ausbildung von Senatoren/Häuptlingen/Stammesführern.",
+            "Eroberungsschutz: Jede Stufe verringert die Chance einer feindlichen Eroberung.",
+            "Residenz kann in jedem Dorf gebaut werden — Palast nur in einem.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087759",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 5"],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (580,460,350,180,1,2,1344), (740,590,450,230,2,3,1628),
             (950,755,575,295,3,3,2001), (1215,965,735,375,4,4,2614),
@@ -1063,9 +1621,19 @@ extension Building {
         id: 26, name: "Palast", category: .infrastructure,
         icon: "crown.fill",
         shortDescription: "Hauptstadt verwalten",
+        description: "Der Palast bestimmt die Hauptstadt und bietet stärkeren Eroberungsschutz als die Residenz. Nur ein Dorf kann gleichzeitig einen Palast haben. Ermöglicht Ausbildung von Siedlern und Senatoren.",
+        detailNotes: [
+            "Nur einmal im ganzen Account baubar — definiert die Hauptstadt.",
+            "Stärkerer Eroberungsschutz als die Residenz.",
+            "Stufe 10/15/20: Ausbildung von Siedlern und Senatoren.",
+            "Hauptstadt kann nicht erobert werden — nur durch Katapult zerstört.",
+            "Beim Palast-Abriss verliert das Dorf den Hauptstadt-Status.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087760",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 5", "Botschaft 1"],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (550,800,750,250,1,6,3650), (705,1025,960,320,2,7,3976),
             (900,1310,1230,410,3,9,4402), (1155,1680,1575,525,4,10,5103),
@@ -1084,9 +1652,18 @@ extension Building {
         id: 27, name: "Schatzkammer", category: .infrastructure,
         icon: "bitcoinsign.circle.fill",
         shortDescription: "Lagert Schätze",
+        description: "Die Schatzkammer lagert erbeutete Schätze und erweitert den Einflussbereich des Königreichs. Könige und Vizekönige benötigen aktivierte Schatzkammern, um ihr Territorium auszudehnen.",
+        detailNotes: [
+            "Jede Schatzkammer kann Schätze lagern, die den Einflussbereich erweitern.",
+            "Könige und Vizekönige können in mehreren Dörfern Schatzkammern bauen.",
+            "Schätze werden durch Angriffe auf andere Spieler erbeutet.",
+            "Mehr Schätze = grösserer Einflussbereich = mehr Dörfer im Königreich.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087762",
         tribe: nil, maxLevel: 20,
         prerequisites: [],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (720,685,645,250,4,7,2069), (1815,1725,1625,625,6,9,2515),
             (2285,2175,2050,785,8,10,3099), (2880,2740,2580,990,10,12,4061),
@@ -1105,9 +1682,18 @@ extension Building {
         id: 24, name: "Rathaus", category: .infrastructure,
         icon: "building.columns.fill",
         shortDescription: "Feierlichkeiten",
+        description: "Im Rathaus können Feierlichkeiten veranstaltet werden, die Kulturpunkte (KP) generieren. Kulturpunkte werden benötigt, um neue Siedlungsplätze freizuschalten und weitere Dörfer zu gründen.",
+        detailNotes: [
+            "Kleine Feier: 6'400 KP in 24h (Kosten: 6'400 jeder Ressource).",
+            "Grosse Feier: 29'000 KP in 24h (Kosten: 29'000 jeder Ressource).",
+            "Feierlichkeiten laufen parallel zu Bauaufträgen.",
+            "Höhere Stufen reduzieren die Kosten und Dauer der Feierlichkeiten.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087761",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 10", "Akademie 10"],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (1250,1110,1260,600,4,6,666), (1600,1420,1615,770,6,7,1093),
             (2050,1820,2065,985,8,9,1651), (2620,2330,2645,1260,10,10,2571),
@@ -1126,9 +1712,18 @@ extension Building {
         id: 23, name: "Versteck", category: .infrastructure,
         icon: "eye.slash.fill",
         shortDescription: "Schützt Ressourcen",
+        description: "Das Versteck schützt Ressourcen vor feindlichen Angriffen. Geschützte Ressourcen können nicht geplündert werden. Die Kapazität steigt von 200 (Stufe 1) bis 2'000 (Stufe 10).",
+        detailNotes: [
+            "Gallier: Versteck hat DOPPELTE Kapazität (400–4'000 statt 200–2'000)!",
+            "Mehrere Verstecke im selben Dorf sind möglich — Kapazitäten addieren sich.",
+            "Schützt Holz, Lehm, Eisen und Getreide gleichermassen.",
+            "Sehr günstig zu bauen — ideal für Anfänger und Farmdörfer-Schutz.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087756",
         tribe: nil, maxLevel: 10,
         prerequisites: [],
         bonusLabel: "Kapazität",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (40,50,30,10,0,1,10), (50,65,40,15,0,1,74),
             (65,80,50,15,0,2,158), (85,105,65,20,0,2,297),
@@ -1142,9 +1737,18 @@ extension Building {
         id: 38, name: "Grosser Kornspeicher", category: .infrastructure,
         icon: "basket.fill",
         shortDescription: "Noch mehr Getreidelager (WW)",
+        description: "Der Grosse Kornspeicher bietet dreifache Getreide-Lagerkapazität im Vergleich zum normalen Kornspeicher. Nur in Weltwunder-Dörfern verfügbar. Kapazität: 3'600 (Stufe 1) bis 240'000 (Stufe 20).",
+        detailNotes: [
+            "Nur in Weltwunder-Dörfern baubar.",
+            "Dreifache Kapazität gegenüber normalem Kornspeicher pro Stufe.",
+            "Essentiell für die enormen Ressourcenanforderungen beim WW-Bau.",
+            "Mehrere Grosse Kornspeicher möglich — Kapazitäten addieren sich.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087794",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 10", "WW-Dorf"],
         bonusLabel: "Kapazität",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (650,800,450,200,1,1,324), (830,1025,575,255,2,1,481),
             (1065,1310,735,330,3,2,686), (1365,1680,945,420,4,2,1024),
@@ -1163,9 +1767,18 @@ extension Building {
         id: 39, name: "Grosses Lager", category: .infrastructure,
         icon: "shippingbox.and.arrow.backward.fill",
         shortDescription: "Noch mehr Lagerkapazität (WW)",
+        description: "Das Grosse Lager bietet dreifache Lagerkapazität für Holz, Lehm und Eisen im Vergleich zum normalen Lager. Nur in Weltwunder-Dörfern verfügbar. Kapazität: 3'600 (Stufe 1) bis 240'000 (Stufe 20).",
+        detailNotes: [
+            "Nur in Weltwunder-Dörfern baubar.",
+            "Dreifache Kapazität gegenüber normalem Lager pro Stufe.",
+            "Essentiell für die enormen Ressourcenanforderungen beim WW-Bau.",
+            "Mehrere Grosse Lager möglich — Kapazitäten addieren sich.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087793",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 10", "WW-Dorf"],
         bonusLabel: "Kapazität",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (400,500,350,100,1,1,321), (510,640,450,130,2,1,458),
             (655,820,575,165,3,2,636), (840,1050,735,210,4,2,930),
@@ -1184,9 +1797,18 @@ extension Building {
         id: 34, name: "Steinmetz", category: .infrastructure,
         icon: "mountain.2.fill",
         shortDescription: "Haltbarere Gebäude",
+        description: "Der Steinmetz erhöht die Haltbarkeit aller Gebäude im Dorf gegen feindliche Katapultangriffe um bis zu 200% (Stufe 20). Nur in der Hauptstadt baubar.",
+        detailNotes: [
+            "Stufe 1: +10%, Stufe 10: +100%, Stufe 20: +200% Haltbarkeit.",
+            "Nur in der Hauptstadt verfügbar.",
+            "Schützt alle Gebäude im Dorf vor Katapult-Schaden.",
+            "Besonders wichtig zum Schutz von Weltwundern und hochstufigen Gebäuden.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087764",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 5", "Nur Hauptstadt"],
-        bonusLabel: "Haltbarkeit %",
+        bonusLabel: "Haltbarkeit",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (155,130,125,70,2,1,35), (200,165,160,90,3,1,261),
             (255,215,205,115,4,2,557), (325,275,260,145,5,2,1044),
@@ -1220,9 +1842,18 @@ extension Building {
         id: 19, name: "Kaserne", category: .military,
         icon: "figure.walk",
         shortDescription: "Bildet Infanterie aus",
+        description: "In der Kaserne wird Infanterie ausgebildet. Höhere Stufen reduzieren die Ausbildungszeit erheblich — von 100% (Stufe 1) auf nur 14% (Stufe 20). Einheiten müssen zuerst in der Akademie erforscht werden.",
+        detailNotes: [
+            "Stufe 1: 100% Bauzeit, Stufe 10: 39%, Stufe 20: nur 14% der Basiszeit.",
+            "Bildet alle Infanterie-Einheiten des jeweiligen Volkes aus.",
+            "Grosse Kaserne als Ergänzung für parallele Ausbildung (nur in Stadt).",
+            "Höhere Kaserne = schnellerer Truppenaufbau = stärkerer Hammer.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087767",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 3", "Versammlungsplatz 1"],
-        bonusLabel: "Bauzeit %",
+        bonusLabel: "Bauzeit",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (210,140,260,120,4,1,36), (280,185,345,160,6,1,270),
             (370,250,460,210,8,2,576), (495,330,610,280,10,2,1080),
@@ -1241,9 +1872,18 @@ extension Building {
         id: 20, name: "Stall", category: .military,
         icon: "hare.fill",
         shortDescription: "Bildet Kavallerie aus",
+        description: "Im Stall wird Kavallerie ausgebildet. Kavallerie ist schneller als Infanterie und eignet sich für Raubzüge und schnelle Angriffe. Die Ausbildungszeit sinkt von 100% (Stufe 1) auf 14% (Stufe 20).",
+        detailNotes: [
+            "Stufe 1: 100% Bauzeit, Stufe 10: 39%, Stufe 20: nur 14% der Basiszeit.",
+            "Bildet alle Kavallerie-Einheiten des jeweiligen Volkes aus.",
+            "Grosser Stall als Ergänzung für parallele Ausbildung (nur in Stadt).",
+            "Kavallerie verbraucht mehr Getreide als Infanterie.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087768",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Schmiede 3", "Akademie 5"],
-        bonusLabel: "Bauzeit %",
+        bonusLabel: "Bauzeit",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (260,140,220,100,5,2,39), (345,185,295,135,8,3,292),
             (460,250,390,175,11,3,624), (610,330,520,235,14,4,1170),
@@ -1262,9 +1902,18 @@ extension Building {
         id: 21, name: "Werkstatt", category: .military,
         icon: "wrench.and.screwdriver.fill",
         shortDescription: "Baut Belagerungswaffen",
+        description: "In der Werkstatt werden Belagerungswaffen gebaut: Rammen (zerstören Mauern) und Katapulte (zerstören Gebäude). Die Ausbildungszeit sinkt von 100% (Stufe 1) auf 14% (Stufe 20).",
+        detailNotes: [
+            "Stufe 1: 100% Bauzeit, Stufe 10: 39%, Stufe 20: nur 14% der Basiszeit.",
+            "Rammen: Zerstören feindliche Mauern/Wälle/Palisaden.",
+            "Katapulte: Zerstören gezielt feindliche Gebäude (ab Stufe 10 zielen).",
+            "Belagerungswaffen sind langsam — mit schnellen Truppen als Eskorte senden.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087769",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 5", "Akademie 10"],
-        bonusLabel: "Bauzeit %",
+        bonusLabel: "Bauzeit",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (460,510,600,320,3,4,646), (590,655,770,410,5,4,948),
             (755,835,985,525,7,5,1344), (965,1070,1260,670,9,6,1995),
@@ -1283,9 +1932,18 @@ extension Building {
         id: 22, name: "Akademie", category: .military,
         icon: "graduationcap.fill",
         shortDescription: "Erforscht Truppen",
+        description: "In der Akademie werden neue Truppentypen erforscht. Erst nach der Erforschung können Einheiten in Kaserne, Stall oder Werkstatt ausgebildet werden. Höhere Stufen schalten stärkere Einheiten frei.",
+        detailNotes: [
+            "Forschung kostet Ressourcen und Zeit — gilt dann für den gesamten Account.",
+            "Jede Einheit hat eigene Akademie-Stufen-Voraussetzungen.",
+            "Siedler und Senatoren benötigen Akademie Stufe 20.",
+            "Erforschen muss nur einmal gemacht werden — gilt dann für alle Dörfer.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087770",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 3", "Kaserne 3"],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (220,160,90,40,4,5,35), (295,215,120,55,6,6,263),
             (390,285,160,70,8,7,561), (520,375,210,95,10,8,1053),
@@ -1304,9 +1962,18 @@ extension Building {
         id: 13, name: "Schmiede", category: .military,
         icon: "hammer.circle.fill",
         shortDescription: "Verbessert Truppen",
+        description: "In der Schmiede werden Truppen verbessert. Jede Verbesserungsstufe erhöht den Angriffs- oder Verteidigungswert einer Einheit um 1.5% pro Stufe. Besonders wichtig für den Haupthammer.",
+        detailNotes: [
+            "Jede Stufe gibt +1.5% auf Angriff oder Verteidigung der jeweiligen Einheit.",
+            "Verbesserungen gelten für ALLE Truppen dieses Typs im gesamten Account.",
+            "Maximal Stufe 20 pro Einheit — ergibt +30% Bonus.",
+            "Priorität: Offensiv-Einheiten im Haupthammer-Dorf zuerst verbessern.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087771",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 3", "Akademie 1"],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (180,250,500,160,4,2,39), (230,320,640,205,6,3,299),
             (295,410,820,260,8,3,638), (375,525,1050,335,10,4,1197),
@@ -1325,9 +1992,18 @@ extension Building {
         id: 16, name: "Versammlungsplatz", category: .military,
         icon: "flag.2.crossed.fill",
         shortDescription: "Truppenverwaltung",
+        description: "Der Versammlungsplatz ist das Zentrum der Truppenverwaltung. Hier werden Angriffe, Verstärkungen und Raubzüge koordiniert. Höhere Stufen schalten erweiterte Funktionen frei.",
+        detailNotes: [
+            "Stufe 1: Angriffe, Verstärkungen und Raubzüge senden.",
+            "Stufe 5: Katapult-Ziel auf bestimmtes Gebäude setzen.",
+            "Stufe 10: Kombination von Angriffs- und Verteidigungstruppen.",
+            "Zeigt alle ein- und ausgehenden Truppenbewegungen an.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087766",
         tribe: nil, maxLevel: 20,
         prerequisites: [],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (110,160,90,70,1,1,34), (145,215,120,95,2,1,258),
             (195,285,160,125,3,2,552), (260,375,210,165,4,2,1035),
@@ -1346,9 +2022,18 @@ extension Building {
         id: 29, name: "Grosse Kaserne", category: .military,
         icon: "figure.walk.diamond.fill",
         shortDescription: "Zusätzliche Infanterie",
+        description: "Die Grosse Kaserne bildet parallel zur normalen Kaserne zusätzliche Infanterie aus. Nur in einer Stadt verfügbar. Ausbildungszeit sinkt von 100% (Stufe 1) auf 14% (Stufe 20).",
+        detailNotes: [
+            "Parallel zur normalen Kaserne — zwei Ausbildungs-Warteschlangen.",
+            "Nur in einer Stadt baubar (Dorf → Stadt Upgrade nötig).",
+            "Gleiche Ausbildungszeit-Reduktion wie normale Kaserne.",
+            "Essenziell für Hammer-Dörfer: doppelte Infanterie-Produktion.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087781",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Stadt", "Kaserne 20"],
-        bonusLabel: "Bauzeit %",
+        bonusLabel: "Bauzeit",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (630,420,780,360,4,1,648), (805,540,1000,460,6,1,966),
             (1030,690,1280,590,8,2,1382), (1320,880,1635,755,10,2,2067),
@@ -1367,9 +2052,18 @@ extension Building {
         id: 30, name: "Grosser Stall", category: .military,
         icon: "hare",
         shortDescription: "Zusätzliche Kavallerie",
+        description: "Der Grosse Stall bildet parallel zum normalen Stall zusätzliche Kavallerie aus. Nur in einer Stadt verfügbar. Ausbildungszeit sinkt von 100% (Stufe 1) auf 14% (Stufe 20).",
+        detailNotes: [
+            "Parallel zum normalen Stall — zwei Ausbildungs-Warteschlangen.",
+            "Nur in einer Stadt baubar (Dorf → Stadt Upgrade nötig).",
+            "Gleiche Ausbildungszeit-Reduktion wie normaler Stall.",
+            "Essenziell für Kavallerie-Hammer: doppelte Reiter-Produktion.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087782",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Stadt", "Stall 20"],
-        bonusLabel: "Bauzeit %",
+        bonusLabel: "Bauzeit",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (780,420,660,300,5,2,648), (1000,540,845,385,8,3,964),
             (1280,690,1080,490,11,3,1377), (1635,880,1385,630,14,4,2058),
@@ -1388,9 +2082,18 @@ extension Building {
         id: 14, name: "Turnierplatz", category: .military,
         icon: "figure.equestrian.sports",
         shortDescription: "Truppen reisen schneller",
+        description: "Der Turnierplatz erhöht die Geschwindigkeit der Truppen bei Märschen über 20 Felder. Der Bonus steigt von +10% (Stufe 1) bis +200% (Stufe 20) auf die Marschgeschwindigkeit.",
+        detailNotes: [
+            "Bonus gilt erst ab einer Entfernung von 20 Feldern.",
+            "Stufe 1: +10%, Stufe 10: +100%, Stufe 20: +200% Geschwindigkeit.",
+            "Wirkt auf alle Truppentypen (Infanterie, Kavallerie, Belagerung).",
+            "Sehr wichtig für Offensivdörfer mit langen Angriffswegen.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087777",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Versammlungsplatz 15"],
-        bonusLabel: "Speed %",
+        bonusLabel: "Speed",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (1750,2250,1530,240,1,1,378), (2240,2880,1960,305,2,1,887),
             (2865,3685,2505,395,3,2,1552), (3670,4720,3210,505,4,2,2649),
@@ -1409,9 +2112,18 @@ extension Building {
         id: 31, name: "Stadtmauer", category: .military,
         icon: "building.fill",
         shortDescription: "Dorfverteidigung",
+        description: "Die Stadtmauer erhöht die Verteidigungskraft des Dorfes. Exklusiv für Römer — bietet den stärksten Verteidigungsbonus aller Mauer-Typen: bis zu +81% (Stufe 20).",
+        detailNotes: [
+            "Stärkste Mauer: +81% Verteidigung auf Stufe 20 (Erdwall: 49%, Palisade: 64%).",
+            "Wird durch feindliche Rammen beschädigt (Stufe sinkt).",
+            "Verteidigungsbonus wirkt auf ALLE Verteidiger im Dorf.",
+            "Ohne Mauer: 0% Bonus — immer so hoch wie möglich ausbauen!",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087773",
         tribe: "Römer", maxLevel: 20,
         prerequisites: [],
-        bonusLabel: "Def %",
+        bonusLabel: "Verteidigung",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (70,90,170,70,0,1,34), (90,115,220,90,0,1,256),
             (115,145,280,115,0,2,547), (145,190,355,145,0,2,1026),
@@ -1430,9 +2142,18 @@ extension Building {
         id: 32, name: "Erdwall", category: .military,
         icon: "mountain.2.fill",
         shortDescription: "Dorfverteidigung",
+        description: "Der Erdwall erhöht die Verteidigungskraft des Dorfes. Exklusiv für Germanen — bietet bis zu +49% Verteidigungsbonus (Stufe 20). Schwächste Mauer, aber Germanen haben stärkere Offensivboni.",
+        detailNotes: [
+            "Schwächste Mauer: +49% auf Stufe 20 (Stadtmauer: 81%, Palisade: 64%).",
+            "Wird durch feindliche Rammen beschädigt (Stufe sinkt).",
+            "Verteidigungsbonus wirkt auf ALLE Verteidiger im Dorf.",
+            "Germanen kompensieren schwächere Mauer durch Brauerei-Offensivbonus.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087774",
         tribe: "Germanen", maxLevel: 20,
         prerequisites: [],
-        bonusLabel: "Def %",
+        bonusLabel: "Verteidigung",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (120,200,0,80,0,1,34), (155,255,0,100,0,1,256),
             (195,330,0,130,0,2,547), (250,420,0,170,0,2,1026),
@@ -1451,9 +2172,18 @@ extension Building {
         id: 33, name: "Palisade", category: .military,
         icon: "rectangle.3.group.fill",
         shortDescription: "Dorfverteidigung",
+        description: "Die Palisade erhöht die Verteidigungskraft des Dorfes. Exklusiv für Gallier — bietet bis zu +64% Verteidigungsbonus (Stufe 20). Günstiger zu bauen als Stadtmauern.",
+        detailNotes: [
+            "Mittelstarke Mauer: +64% auf Stufe 20 (Stadtmauer: 81%, Erdwall: 49%).",
+            "Wird durch feindliche Rammen beschädigt (Stufe sinkt).",
+            "Verteidigungsbonus wirkt auf ALLE Verteidiger im Dorf.",
+            "Gallier kombinieren Palisade + Fallensteller für starke Verteidigung.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087775",
         tribe: "Gallier", maxLevel: 20,
         prerequisites: [],
-        bonusLabel: "Def %",
+        bonusLabel: "Verteidigung",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (160,100,80,60,0,1,34), (205,130,100,75,0,1,256),
             (260,165,130,100,0,2,547), (335,210,170,125,0,2,1026),
@@ -1472,9 +2202,19 @@ extension Building {
         id: 36, name: "Fallensteller", category: .military,
         icon: "ant.fill",
         shortDescription: "Baut Fallen",
+        description: "Der Fallensteller baut Fallen, die feindliche Angreifer einfangen. Exklusiv für Gallier. Die Fallenkapazität steigt von 10 (Stufe 1) bis 400 (Stufe 20).",
+        detailNotes: [
+            "Gefangene Truppen verbrauchen weiterhin Getreide beim Angreifer.",
+            "Gefangene können freigelassen oder durch einen Angriff befreit werden.",
+            "Fallen werden nach jedem Angriff automatisch wiederhergestellt.",
+            "Mehrere Fallensteller möglich — Kapazitäten addieren sich.",
+            "Sehr effektiv gegen kleine Raubzüge und Spähversuche.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087780",
         tribe: "Gallier", maxLevel: 20,
         prerequisites: ["Versammlungsplatz 1"],
         bonusLabel: "Max Fallen",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (80,120,70,90,4,1,33), (105,160,95,120,6,1,254),
             (140,210,125,160,8,2,542), (190,280,165,210,10,2,1016),
@@ -1493,9 +2233,19 @@ extension Building {
         id: 35, name: "Brauerei", category: .military,
         icon: "mug.fill",
         shortDescription: "+20% Angriffsstärke",
+        description: "Die Brauerei erhöht die Angriffsstärke aller Truppen dieses Dorfes um bis zu 20% (Stufe 20). Exklusiv für Germanen und nur in der Hauptstadt baubar.",
+        detailNotes: [
+            "Stufe 1: +1%, Stufe 10: +10%, Stufe 20: +20% Angriffsstärke.",
+            "Wirkt auf ALLE Truppen im Dorf — nicht nur Germanen-Einheiten.",
+            "Nur in der Hauptstadt baubar — ideal für das Haupthammer-Dorf.",
+            "Eine der stärksten Offensiv-Verbesserungen im gesamten Spiel.",
+            "Bonus stapelt sich mit Schmiede-Verbesserungen.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087779",
         tribe: "Germanen", maxLevel: 20,
         prerequisites: ["Nur Hauptstadt", "Kornspeicher 20", "Versammlungsplatz 10"],
-        bonusLabel: "Angriff %",
+        bonusLabel: "Angriff",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (1460,930,1250,1740,6,5,675), (1870,1190,1600,2225,9,6,1162),
             (2390,1525,2050,2850,12,7,1800), (3060,1950,2620,3650,15,8,2850),
@@ -1514,9 +2264,19 @@ extension Building {
         id: 41, name: "Pferdetränke", category: .military,
         icon: "drop.fill",
         shortDescription: "Kavallerie-Unterhalt senken",
+        description: "Die Pferdetränke reduziert den Getreide-Unterhalt aller Kavallerie-Einheiten. Exklusiv für Römer. Stufe 20 senkt Kavallerie-Unterhalt auf 80% des Normalwerts.",
+        detailNotes: [
+            "Stufe 1: 99% Unterhalt, Stufe 10: 90%, Stufe 20: 80% des Normalwerts.",
+            "Wirkt nur auf Kavallerie — nicht auf Infanterie oder Belagerung.",
+            "Spart massiv Getreide bei grossen Reiter-Armeen.",
+            "Nur für Römer verfügbar — einzigartiger Volk-Vorteil.",
+            "Besonders wertvoll bei Equites Caesaris und Equites Imperatoris.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087778",
         tribe: "Römer", maxLevel: 20,
         prerequisites: ["Versammlungsplatz 10", "Stall 20"],
-        bonusLabel: "Unterhalt %",
+        bonusLabel: "Unterhalt",
+        bonusUnit: "%",
         levels: makeLevels(costs: [
             (780,420,660,540,5,4,650), (1000,540,845,690,8,4,980),
             (1280,690,1080,885,11,5,1411), (1635,880,1385,1130,14,6,2121),
@@ -1535,9 +2295,18 @@ extension Building {
         id: 42, name: "Wassergraben", category: .military,
         icon: "water.waves",
         shortDescription: "Dorfverteidigung (Stadt)",
+        description: "Der Wassergraben bietet zusätzliche Verteidigung und ist nur in einer Stadt verfügbar. Er ergänzt die volksspezifische Mauer und erhöht den Verteidigungsbonus des Dorfes deutlich.",
+        detailNotes: [
+            "Nur in einer Stadt baubar (Dorf → Stadt Upgrade nötig).",
+            "Ergänzt die normale Mauer (Stadtmauer/Erdwall/Palisade).",
+            "Beide Verteidigungsboni (Mauer + Wassergraben) wirken zusammen.",
+            "Macht Städte deutlich schwerer angreifbar als normale Dörfer.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087776",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Stadt"],
         bonusLabel: nil,
+        bonusUnit: nil,
         levels: makeLevels(costs: [
             (740,850,960,620,4,4,357), (945,1090,1230,795,6,4,727),
             (1210,1395,1575,1015,8,5,1212), (1550,1785,2015,1300,10,6,2010),
@@ -1556,9 +2325,19 @@ extension Building {
         id: 46, name: "Heilzelt", category: .military,
         icon: "cross.circle.fill",
         shortDescription: "Heilt verwundete Truppen",
+        description: "Das Heilzelt rettet einen Teil der gefallenen Verteidigungstruppen nach einem Kampf. Kapazität: 400 (Stufe 1) bis 8'000 (Stufe 20) geheilte Truppen pro Kampf.",
+        detailNotes: [
+            "Rettet nur Verteidigungstruppen — nicht Angreifer.",
+            "Bis zu 40% der gefallenen Verteidiger können geheilt werden.",
+            "Heilung geschieht automatisch nach jedem Verteidigungskampf.",
+            "Geheilte Truppen stehen sofort wieder zur Verfügung.",
+            "Stufe 20: bis zu 8'000 Truppen pro Kampf heilbar.",
+        ],
+        infoURL: "https://support.kingdoms.com/en/support/solutions/articles/7000087772",
         tribe: nil, maxLevel: 20,
         prerequisites: ["Hauptgebäude 10", "Akademie 15"],
         bonusLabel: "Kapazität",
+        bonusUnit: "",
         levels: makeLevels(costs: [
             (900,800,750,650,3,5,654), (1150,1025,960,830,5,6,1005),
             (1475,1310,1230,1065,7,7,1464), (1885,1680,1575,1365,9,8,2220),

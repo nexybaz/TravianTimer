@@ -97,12 +97,14 @@ struct TravianTimerApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var callsStore = CallsStore()
+    @State private var operationStore = OperationPlanStore()
     @State private var authService = AuthService.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(callsStore)
+                .environment(operationStore)
                 .environment(authService)
                 .onOpenURL { url in
                     // Handle Supabase Auth Callback (E-Mail Bestaetigung, Magic Link, OAuth)

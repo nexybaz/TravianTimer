@@ -151,8 +151,18 @@ final class ProfileStore {
             }
 
             if !supabaseVillages.isEmpty {
-                // Supabase-Daten als neue Source-of-Truth setzen
-                let newVillages = supabaseVillages.map { VillageProfile(from: $0) }
+                // Supabase-Daten als neue Source-of-Truth setzen,
+                // ABER lokale IDs beibehalten (damit VillagePlan.villageId stabil bleibt)
+                let oldVillages = villages
+                let newVillages = supabaseVillages.map { sv -> VillageProfile in
+                    var profile = VillageProfile(from: sv)
+                    // Match: existierendes Dorf via supabaseId oder Name+Koordinaten
+                    if let existing = oldVillages.first(where: { $0.supabaseId == sv.id }) ??
+                                      oldVillages.first(where: { $0.name == sv.name && $0.x == sv.x && $0.y == sv.y }) {
+                        profile.id = existing.id  // Lokale ID beibehalten!
+                    }
+                    return profile
+                }
                 villages = newVillages
                 print("[ProfileStore] \(newVillages.count) Doerfer aus Supabase geladen")
             } else {

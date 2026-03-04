@@ -525,29 +525,8 @@ struct VillageImportView: View {
 
     // MARK: - Parsing helpers
 
-    private func cleanLine(_ raw: String) -> String {
-        let formatMarks: Set<Unicode.Scalar> = [
-            "\u{200E}","\u{200F}","\u{202A}","\u{202B}","\u{202C}","\u{202D}","\u{202E}",
-            "\u{2066}","\u{2067}","\u{2068}","\u{2069}",
-            "\u{200B}","\u{FEFF}","\u{2060}"
-        ]
-
-        let strippedScalars = raw.unicodeScalars.filter { !formatMarks.contains($0) }
-        var s = String(String.UnicodeScalarView(strippedScalars))
-        // normalize common unicode variants from copy/paste
-        s = s.replacingOccurrences(of: "\u{2212}", with: "-") // unicode minus
-        s = s.replacingOccurrences(of: "\u{FF5C}", with: "|")
-        s = s.replacingOccurrences(of: "\u{00A6}", with: "|")
-        s = s.replacingOccurrences(of: "\u{2223}", with: "|")
-        s = s.replacingOccurrences(of: "\t", with: " ")
-        s = s.replacingOccurrences(of: "\r", with: " ")
-        s = s.replacingOccurrences(of: "\u{00A0}", with: " ")
-        while s.contains("  ") { s = s.replacingOccurrences(of: "  ", with: " ") }
-        return s.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private func normalizeVillageKey(_ raw: String) -> String {
-        var s = cleanLine(raw)
+        var s = TextCleaner.cleanLine(raw)
         // normalize separators/spaces
         s = s.replacingOccurrences(of: "\u{00A0}", with: " ")
         s = s.replacingOccurrences(of: "\t", with: " ")
@@ -569,7 +548,7 @@ struct VillageImportView: View {
 
         let lines = coordsInput
             .components(separatedBy: .newlines)
-            .map { cleanLine($0) }
+            .map { TextCleaner.cleanLine($0) }
             .filter { !$0.isEmpty }
 
         let pattern = "^\\s*(.+?)\\s*\\(\\s*([-+]?\\d+)\\s*[\\|/]\\s*([-+]?\\d+)\\s*\\)"
@@ -586,7 +565,7 @@ struct VillageImportView: View {
             guard let m = regex.firstMatch(in: line, options: [], range: range) else { continue }
             guard m.numberOfRanges >= 4 else { continue }
 
-            let name = cleanLine(ns.substring(with: m.range(at: 1)))
+            let name = TextCleaner.cleanLine(ns.substring(with: m.range(at: 1)))
             let xStr = ns.substring(with: m.range(at: 2))
             let yStr = ns.substring(with: m.range(at: 3))
 
@@ -705,7 +684,7 @@ struct VillageImportView: View {
 
         let lines = troopsInput
             .components(separatedBy: .newlines)
-            .map { cleanLine($0) }
+            .map { TextCleaner.cleanLine($0) }
             .filter { !$0.isEmpty }
 
         // Tabelle erkennen (mehrsprachig, Ctrl+A tolerant)
@@ -766,7 +745,7 @@ struct VillageImportView: View {
 
             let nameTokens = cleaned.prefix(max(0, cleaned.count - numericTailCount))
             let nameRaw = nameTokens.joined(separator: " ")
-            let name = cleanLine(nameRaw)
+            let name = TextCleaner.cleanLine(nameRaw)
             if name.isEmpty { continue }
 
             let tail = Array(ints.suffix(numericTailCount))

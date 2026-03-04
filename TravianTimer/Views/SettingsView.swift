@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 // MARK: - Settings Tab
 
@@ -9,6 +10,11 @@ struct SettingsView: View {
 
     @State private var showAuthSheet: Bool = false
     @State private var showVerifySheet: Bool = false
+
+    private var isDeveloper: Bool {
+        let email = SupabaseManager.client.auth.currentSession?.user.email
+        return email == "bogey.01klaviere@icloud.com"
+    }
 
     var body: some View {
         NavigationStack {
@@ -126,6 +132,18 @@ struct SettingsView: View {
                         Text("Sicherheit")
                     } footer: {
                         Text("Sperrt die App beim Start und beim Zurückkehren aus dem Hintergrund. Entsperren mit \(lockService.biometryName).")
+                    }
+                }
+
+                // MARK: Debug (nur Developer)
+
+                if isDeveloper {
+                    Section("Debug") {
+                        Button("Onboarding zurücksetzen", role: .destructive) {
+                            UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+                            UserDefaults.standard.set(false, forKey: "hasCompletedTroopImport")
+                            UserDefaults.standard.set(false, forKey: "hasSkippedVerification")
+                        }
                     }
                 }
 

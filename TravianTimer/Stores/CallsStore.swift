@@ -264,6 +264,14 @@ final class CallsStore {
         guard let userId = AuthService.shared.currentUserId else { return }
         let playerName = AuthService.shared.profile?.playerName ?? "Unbekannt"
 
+        // Cross-Call Validierung: nicht mehr pledgen als im Dorf verfuegbar
+        let totalInVillage = ProfileStore.shared.villages
+            .first(where: { $0.name == villageName })?
+            .troopCounts[troopKind] ?? 0
+        let elsewhere = pledgedElsewhere(villageName: villageName, troopKind: troopKind, excludingCallId: callId)
+        let maxAllowed = max(0, totalInVillage - elsewhere)
+        let safeCount = min(count, maxAllowed)
+
         let pledgeKey = "\(callId)|\(userId)|\(villageName)|\(troopKind)"
 
         // Markiere als optimistisch — Realtime DELETE Events fuer diesen Key werden ignoriert
@@ -272,7 +280,7 @@ final class CallsStore {
         // Optimistisches lokales Update sofort (UI reagiert instant)
         var existing = pledgesByCall[callId] ?? []
         existing.removeAll { $0.userId == userId && $0.villageName == villageName && $0.troopKind == troopKind }
-        if count > 0 {
+        if safeCount > 0 {
             let localPledge = TroopPledge(
                 callId: callId,
                 userId: userId,
@@ -281,7 +289,7 @@ final class CallsStore {
                 villageX: villageX,
                 villageY: villageY,
                 troopKind: troopKind,
-                count: count
+                count: safeCount
             )
             existing.append(localPledge)
         }
@@ -298,8 +306,8 @@ final class CallsStore {
                 .eq("troop_kind", value: troopKind)
                 .execute()
 
-            // 2. Neues Pledge nur wenn count > 0
-            if count > 0 {
+            // 2. Neues Pledge nur wenn safeCount > 0
+            if safeCount > 0 {
                 let insert = PledgeInsert(
                     callId: callId,
                     userId: userId,
@@ -308,7 +316,7 @@ final class CallsStore {
                     villageX: villageX,
                     villageY: villageY,
                     troopKind: troopKind,
-                    count: count
+                    count: safeCount
                 )
 
                 try await client
@@ -321,8 +329,8 @@ final class CallsStore {
             // Das lokale optimistische Update oben sorgt fuer sofortige UI-Reaktion.
             // optimisticPledgeKeys wird vom Realtime INSERT Handler entfernt.
 
-            // Falls count == 0 (nur DELETE, kein INSERT), Key sofort entfernen
-            if count == 0 {
+            // Falls safeCount == 0 (nur DELETE, kein INSERT), Key sofort entfernen
+            if safeCount == 0 {
                 optimisticPledgeKeys.remove(pledgeKey)
             }
         } catch {
@@ -332,6 +340,18 @@ final class CallsStore {
             // Bei Fehler: Korrekten Stand aus DB laden
             await loadPledges(callId: callId)
         }
+    }
+
+    // MARK: - Cross-Call Availability
+
+    /// Summe aller eigenen Pledges fuer ein Dorf+Truppentyp in ANDEREN Calls.
+    func pledgedElsewhere(villageName: String, troopKind: String, excludingCallId: UUID) -> Int {
+        guard let userId = AuthService.shared.currentUserId else { return 0 }
+        return pledgesByCall
+            .filter { $0.key != excludingCallId }
+            .flatMap { $0.value }
+            .filter { $0.userId == userId && $0.villageName == villageName && $0.troopKind == troopKind }
+            .reduce(0) { $0 + $1.count }
     }
 
     // MARK: - Options (lokal, keine DB)

@@ -80,10 +80,11 @@ final class TroopHistoryStore {
         let deffTroops: Int
     }
 
-    /// Gruppiert Snapshots nach Zeitstempel und summiert Truppen + Getreide + Off/Deff.
+    /// Gruppiert Snapshots nach Zeitstempel, summiert Truppen + Getreide + Off/Deff,
+    /// und behält pro Kalendertag nur den **letzten** Import (neueste Daten).
+    /// So bleibt die Sparkline aussagekräftig auch bei mehreren Updates am selben Tag.
     func totalsByDate() -> [DateTotal] {
-        // Snapshots sind pro Dorf gespeichert — gleicher Zeitstempel = gleicher Import.
-        // Gruppiere nach Sekunden-genauem Datum.
+        // 1. Snapshots pro Import-Batch gruppieren (gleicher Zeitstempel = gleicher Import)
         var grouped: [TimeInterval: (troops: Int, crop: Int, off: Int, deff: Int, date: Date)] = [:]
 
         for snap in snapshots {
@@ -112,9 +113,19 @@ final class TroopHistoryStore {
             )
         }
 
-        return grouped.values
+        let allTotals = grouped.values
             .map { DateTotal(date: $0.date, totalTroops: $0.troops, totalCrop: $0.crop, offTroops: $0.off, deffTroops: $0.deff) }
             .sorted { $0.date < $1.date }
+
+        // 2. Pro Kalendertag nur den letzten Eintrag behalten
+        let cal = Calendar.current
+        var latestPerDay: [Date: DateTotal] = [:]
+        for total in allTotals {
+            let day = cal.startOfDay(for: total.date)
+            latestPerDay[day] = total   // überschreibt ältere — allTotals aufsteigend sortiert
+        }
+
+        return latestPerDay.values.sorted { $0.date < $1.date }
     }
 
     // MARK: - Logout / Clear

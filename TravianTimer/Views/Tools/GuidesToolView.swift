@@ -8,8 +8,53 @@ struct GuidesToolView: View {
 
     private let schnellsiedelFavId = FavoriteToolItem.guideSchnellsiedeln.rawValue
 
+    private let questsFavId = FavoriteToolItem.guideQuests.rawValue
+
     var body: some View {
         List {
+            NavigationLink {
+                QuestsGuideView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Aufgaben (Quests)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("Alle Quests mit Belohnungen")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "text.book.closed.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.indigo.gradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .contextMenu {
+                Button {
+                    withAnimation { favorites.toggle(questsFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(questsFavId) ? "Aus Favoriten entfernen" : "An Tools anheften",
+                        systemImage: favorites.isFavorite(questsFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    withAnimation { favorites.toggle(questsFavId) }
+                } label: {
+                    Label(
+                        favorites.isFavorite(questsFavId) ? "Lösen" : "Anheften",
+                        systemImage: favorites.isFavorite(questsFavId) ? "pin.slash" : "pin.fill"
+                    )
+                }
+                .tint(.orange)
+            }
+
             NavigationLink {
                 SchnellsiedelGuideView()
             } label: {

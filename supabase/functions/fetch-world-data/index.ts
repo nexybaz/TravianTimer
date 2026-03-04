@@ -251,7 +251,43 @@ serve(async (req) => {
       }
     }
 
-    // 12. DB: last_fetched aktualisieren (Keys nicht ueberschreiben!)
+    // 12. DB: Alle Spieler der Welt in map_players speichern (fuer Einsatzplaner)
+    const allPlayers = response.players ?? [];
+    const allKingdoms = response.kingdoms ?? [];
+    const kingdomMap: Record<string, string> = {};
+    for (const k of allKingdoms) {
+      kingdomMap[String(k.kingdomId)] = k.kingdomTag ?? "";
+    }
+
+    // Batch-Upsert in Gruppen von 200
+    const mapRows = allPlayers.map((p: any) => ({
+      world_id: worldId,
+      travian_player_id: parseInt(p.playerId),
+      player_name: p.name,
+      kingdom_id: parseInt(p.kingdomId) || null,
+      kingdom_tag: kingdomMap[String(p.kingdomId)] ?? null,
+      villages: (p.villages ?? []).map((v: any) => ({
+        id: parseInt(v.villageId),
+        name: v.name,
+        x: parseInt(v.x),
+        y: parseInt(v.y),
+        population: parseInt(v.population),
+      })),
+      updated_at: new Date().toISOString(),
+    }));
+
+    for (let i = 0; i < mapRows.length; i += 200) {
+      const batch = mapRows.slice(i, i + 200);
+      const { error: mapErr } = await supabaseAdmin
+        .from("map_players")
+        .upsert(batch, { onConflict: "world_id,travian_player_id", ignoreDuplicates: false });
+      if (mapErr) {
+        console.error(`[fetch-world-data] map_players Batch ${i / 200} Fehler:`, mapErr.message);
+      }
+    }
+    console.log(`[fetch-world-data] ${mapRows.length} Spieler in map_players gespeichert (${worldId})`);
+
+    // 13. DB: last_fetched aktualisieren (Keys nicht ueberschreiben!)
     const gw = response.gameworld;
     await supabaseAdmin.from("gameworlds").update({
       speed: gw?.speed ?? 1,
@@ -259,7 +295,7 @@ serve(async (req) => {
       last_fetched: new Date().toISOString(),
     }).eq("world_id", worldId);
 
-    // 13. Response
+    // 14. Response
     return new Response(JSON.stringify({
       player: {
         playerId: parseInt(player.playerId),

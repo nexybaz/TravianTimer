@@ -21,6 +21,12 @@ struct VillageProfile: Identifiable, Codable, Hashable {
     var population: Int?            // Aus Travian-API
     var isCity: Bool = false        // Aus Travian-API
 
+    // Ressourcen-Produktion pro Stunde (via Clipboard-Parser)
+    var productionWood: Int?
+    var productionClay: Int?
+    var productionIron: Int?
+    var productionCrop: Int?        // kann negativ sein
+
     // Custom Decoder: Damit alte UserDefaults-Daten (ohne die neuen Felder) weiterhin geladen werden koennen.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -34,13 +40,19 @@ struct VillageProfile: Identifiable, Codable, Hashable {
         travianVillageId = try container.decodeIfPresent(Int.self, forKey: .travianVillageId)
         population = try container.decodeIfPresent(Int.self, forKey: .population)
         isCity = try container.decodeIfPresent(Bool.self, forKey: .isCity) ?? false
+        productionWood = try container.decodeIfPresent(Int.self, forKey: .productionWood)
+        productionClay = try container.decodeIfPresent(Int.self, forKey: .productionClay)
+        productionIron = try container.decodeIfPresent(Int.self, forKey: .productionIron)
+        productionCrop = try container.decodeIfPresent(Int.self, forKey: .productionCrop)
     }
 
     // Memberwise init (fuer Code-Nutzung)
     init(id: UUID = UUID(), name: String, x: Int, y: Int,
          allowedTroops: [String] = [], troopCounts: [String: Int] = [:],
          supabaseId: UUID? = nil, travianVillageId: Int? = nil,
-         population: Int? = nil, isCity: Bool = false) {
+         population: Int? = nil, isCity: Bool = false,
+         productionWood: Int? = nil, productionClay: Int? = nil,
+         productionIron: Int? = nil, productionCrop: Int? = nil) {
         self.id = id
         self.name = name
         self.x = x
@@ -51,6 +63,10 @@ struct VillageProfile: Identifiable, Codable, Hashable {
         self.travianVillageId = travianVillageId
         self.population = population
         self.isCity = isCity
+        self.productionWood = productionWood
+        self.productionClay = productionClay
+        self.productionIron = productionIron
+        self.productionCrop = productionCrop
     }
 }
 
@@ -69,6 +85,10 @@ struct SupabaseVillage: Codable {
     let population: Int?
     let isCity: Bool?
     let updatedAt: String?
+    let productionWood: Int?
+    let productionClay: Int?
+    let productionIron: Int?
+    let productionCrop: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -82,6 +102,10 @@ struct SupabaseVillage: Codable {
         case population
         case isCity          = "is_city"
         case updatedAt       = "updated_at"
+        case productionWood  = "production_wood"
+        case productionClay  = "production_clay"
+        case productionIron  = "production_iron"
+        case productionCrop  = "production_crop"
     }
 }
 
@@ -99,6 +123,10 @@ struct SupabaseVillageInsert: Codable {
     let travianVillageId: Int?
     let population: Int?
     let isCity: Bool
+    let productionWood: Int?
+    let productionClay: Int?
+    let productionIron: Int?
+    let productionCrop: Int?
 
     enum CodingKeys: String, CodingKey {
         case userId          = "user_id"
@@ -110,6 +138,10 @@ struct SupabaseVillageInsert: Codable {
         case travianVillageId = "travian_village_id"
         case population
         case isCity          = "is_city"
+        case productionWood  = "production_wood"
+        case productionClay  = "production_clay"
+        case productionIron  = "production_iron"
+        case productionCrop  = "production_crop"
     }
 }
 
@@ -123,6 +155,10 @@ struct SupabaseVillageUpdate: Codable {
     let y: Int
     let allowedTroops: [String]
     let troopCounts: [String: Int]
+    let productionWood: Int?
+    let productionClay: Int?
+    let productionIron: Int?
+    let productionCrop: Int?
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -130,6 +166,10 @@ struct SupabaseVillageUpdate: Codable {
         case y
         case allowedTroops   = "allowed_troops"
         case troopCounts     = "troop_counts"
+        case productionWood  = "production_wood"
+        case productionClay  = "production_clay"
+        case productionIron  = "production_iron"
+        case productionCrop  = "production_crop"
     }
 }
 
@@ -148,7 +188,11 @@ extension VillageProfile {
             supabaseId: sv.id,
             travianVillageId: sv.travianVillageId,
             population: sv.population,
-            isCity: sv.isCity ?? false
+            isCity: sv.isCity ?? false,
+            productionWood: sv.productionWood,
+            productionClay: sv.productionClay,
+            productionIron: sv.productionIron,
+            productionCrop: sv.productionCrop
         )
     }
 
@@ -163,7 +207,11 @@ extension VillageProfile {
             troopCounts: troopCounts,
             travianVillageId: travianVillageId,
             population: population,
-            isCity: isCity
+            isCity: isCity,
+            productionWood: productionWood,
+            productionClay: productionClay,
+            productionIron: productionIron,
+            productionCrop: productionCrop
         )
     }
 
@@ -174,7 +222,11 @@ extension VillageProfile {
             x: x,
             y: y,
             allowedTroops: allowedTroops,
-            troopCounts: troopCounts
+            troopCounts: troopCounts,
+            productionWood: productionWood,
+            productionClay: productionClay,
+            productionIron: productionIron,
+            productionCrop: productionCrop
         )
     }
 }

@@ -111,6 +111,31 @@ function parseCoordinates(text) {
  * Erkennt Ankunftszeit: HH:MM oder HH:MM:SS
  * Bevorzugt Zeilen mit "ankunft", "vor", "bis", "punkt"
  */
+/**
+ * Baut aus h/m/s (Europe/Berlin) einen UTC-ISO-String.
+ * Behandelt CET (+1) und CEST (+2) automatisch.
+ */
+function buildBerlinArrival(h, m, s) {
+  const now = new Date();
+
+  // Aktuellen Berlin-Offset ermitteln (CET=+1h, CEST=+2h)
+  const berlin = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Berlin" }));
+  const utc = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
+  const berlinOffsetMs = berlin.getTime() - utc.getTime();
+
+  // Gewuenschte Uhrzeit als UTC setzen, dann Berlin-Offset abziehen
+  const arrival = new Date(now);
+  arrival.setUTCHours(h, m, s, 0);
+  arrival.setTime(arrival.getTime() - berlinOffsetMs);
+
+  // Wenn mehr als 12h in der Vergangenheit → morgen
+  if (arrival.getTime() - now.getTime() < -12 * 60 * 60 * 1000) {
+    arrival.setUTCDate(arrival.getUTCDate() + 1);
+  }
+
+  return arrival.toISOString();
+}
+
 function parseArrival(text) {
   const lines = text.split("\n");
 
@@ -124,19 +149,7 @@ function parseArrival(text) {
         const h = parseInt(match[1]);
         const m = parseInt(match[2]);
         const s = match[3] ? parseInt(match[3]) : 0;
-
-        // ISO Timestamp erstellen
-        const now = new Date();
-        const arrival = new Date(now);
-        arrival.setHours(h, m, s, 0);
-
-        // Wenn mehr als 12h in der Vergangenheit → morgen
-        const diffMs = arrival.getTime() - now.getTime();
-        if (diffMs < -12 * 60 * 60 * 1000) {
-          arrival.setDate(arrival.getDate() + 1);
-        }
-
-        return arrival.toISOString();
+        return buildBerlinArrival(h, m, s);
       }
     }
   }
@@ -147,17 +160,7 @@ function parseArrival(text) {
     const h = parseInt(fallbackMatch[1]);
     const m = parseInt(fallbackMatch[2]);
     const s = fallbackMatch[3] ? parseInt(fallbackMatch[3]) : 0;
-
-    const now = new Date();
-    const arrival = new Date(now);
-    arrival.setHours(h, m, s, 0);
-
-    const diffMs = arrival.getTime() - now.getTime();
-    if (diffMs < -12 * 60 * 60 * 1000) {
-      arrival.setDate(arrival.getDate() + 1);
-    }
-
-    return arrival.toISOString();
+    return buildBerlinArrival(h, m, s);
   }
 
   return null;
@@ -263,6 +266,29 @@ function cleanupSuppressed() {
   }
 }
 
+// ─── Call Dedup (verhindert Doppel-Calls bei Forum/Thread-Erstellung) ───────
+// Discord feuert bei Forum-Posts zwei MessageCreate Events (Channel + Thread).
+// Dedup per "parentChannel:x:y" innerhalb 30 Sekunden.
+const recentCallKeys = new Map(); // key → timestamp
+
+function isDuplicateCall(channelId, parentId, x, y) {
+  const effectiveId = parentId || channelId;
+  const key = `${effectiveId}:${x}:${y}`;
+  const now = Date.now();
+
+  // Alte Eintraege aufraeumen
+  for (const [k, ts] of recentCallKeys) {
+    if (now - ts > 30_000) recentCallKeys.delete(k);
+  }
+
+  if (recentCallKeys.has(key) && (now - recentCallKeys.get(key)) < 30_000) {
+    return true;
+  }
+
+  recentCallKeys.set(key, now);
+  return false;
+}
+
 // ─── Call Detection ─────────────────────────────────────────────────────────
 
 async function handleCallDetection(message) {
@@ -278,6 +304,20 @@ async function handleCallDetection(message) {
   let arrival = parseArrival(text);
   const crop = parseCropLimit(text);
   const link = parseLink(text);
+
+  // Forum-Channels: Der Parent-Event enthaelt nur den Post-Titel (Coords, aber
+  // keine Arrival/Crop/Link). Der Thread-Event hat den vollstaendigen Inhalt.
+  // Nachrichten die NUR Koordinaten enthalten werden uebersprungen.
+  if (!arrival && !crop && !link) {
+    console.log(`[CallDetector] Nur Koordinaten in #${message.channel.name} — uebersprungen (kein Arrival/Crop/Link)`);
+    return;
+  }
+
+  // Duplikat-Schutz: gleiche Koordinaten im gleichen (Parent-)Channel innerhalb 30s
+  if (isDuplicateCall(message.channel.id, message.channel.parentId, coords.x, coords.y)) {
+    console.log(`[CallDetector] Duplikat-Schutz: (${coords.x}|${coords.y}) bereits verarbeitet — uebersprungen`);
+    return;
+  }
 
   // Thread-Name als Titel nutzen (wenn vorhanden), sonst aus Text ableiten
   const isThread = message.channel.isThread?.() || false;

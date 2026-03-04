@@ -1,0 +1,13 @@
+{
+  "name": "traviantimer-indexer",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Codebase-Indexer für KI-Team RAG",
+  "scripts": {
+    "index": "node index.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
+  }
+}

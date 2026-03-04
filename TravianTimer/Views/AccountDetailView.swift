@@ -28,34 +28,41 @@ struct AccountDetailView: View {
 
     @Environment(AuthService.self) var authService
 
-    @State private var showVerifySheet: Bool = false
-    @State private var isRefreshing: Bool = false
-    @State private var refreshMessage: String? = nil
-
+    // Avatar
     @State private var avatarImage: UIImage?
-    @State private var showPhotoPicker: Bool = false
+    @State private var showAvatarSheet = false
+    @State private var showPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var showAvatarOptions: Bool = false
+    @State private var showAvatarGenerator = false
 
-    // Account löschen
-    @State private var showDeleteAlert: Bool = false
-    @State private var showDeleteConfirm: Bool = false
-    @State private var isDeletingAccount: Bool = false
-    @State private var deleteError: String? = nil
+    // Travian
+    @State private var showVerifySheet = false
 
     // Prestige
-    @State private var showPrestigeAlert = false
     @State private var prestigeInput = ""
+    @FocusState private var prestigeFieldFocused: Bool
+
+    // Plus Account
+    @AppStorage("hasPlusAccount") private var hasPlusAccount: Bool = false
+
+    // Abmelden
+    @State private var showLogoutConfirm = false
+
+    // Account loeschen
+    @State private var showDeleteAlert = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeletingAccount = false
+    @State private var deleteError: String?
 
     var body: some View {
         Form {
             if let userProfile = authService.profile {
 
-                // MARK: Avatar
+                // MARK: Hero Header
 
                 Section {
                     VStack(spacing: 12) {
-                        // Grosser Avatar
+                        // Avatar mit Kamera-Badge
                         ZStack(alignment: .bottomTrailing) {
                             if let avatarImage {
                                 Image(uiImage: avatarImage)
@@ -72,60 +79,61 @@ struct AccountDetailView: View {
                                     .foregroundStyle(.secondary)
                             }
 
-                            // Bearbeiten-Badge
-                            Image(systemName: "pencil.circle.fill")
+                            Image(systemName: "camera.circle.fill")
                                 .font(.title2)
                                 .foregroundStyle(.white, .blue)
                                 .offset(x: 4, y: 4)
                         }
-                        .onTapGesture { showAvatarOptions = true }
+                        .onTapGesture { showAvatarSheet = true }
 
+                        // Name
                         Text(userProfile.playerName)
                             .font(.title2)
                             .fontWeight(.bold)
+
+                        // Rolle + Kingdom + Verified
+                        HStack(spacing: 8) {
+                            Text(userProfile.role.displayName)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(roleBadgeColor(for: userProfile.role))
+                                .clipShape(Capsule())
+
+                            if let tag = userProfile.kingdomTag {
+                                Text(tag)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if userProfile.isVerified {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .foregroundStyle(.green)
+                                    .font(.subheadline)
+                            }
+                        }
+
+                        // Funktionen als kompakte Tags
+                        if !userProfile.functions.isEmpty {
+                            HStack(spacing: 6) {
+                                ForEach(userProfile.functions) { fn in
+                                    Label(fn.displayName, systemImage: fn.icon)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(fn.color)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(fn.color.opacity(0.12))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .listRowBackground(Color.clear)
-                }
-
-                // Standardvorgaben
-                Section("Profilbild") {
-                    Button {
-                        showPhotoPicker = true
-                    } label: {
-                        Label("Foto hochladen", systemImage: "photo.on.rectangle.angled")
-                    }
-
-                    // Standard-Avatare
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Standardvorgaben")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                            ForEach(AvatarPreset.allCases) { preset in
-                                Button {
-                                    applyPreset(preset)
-                                } label: {
-                                    Image(systemName: preset.rawValue)
-                                        .font(.title2)
-                                        .frame(width: 50, height: 50)
-                                        .foregroundStyle(.white)
-                                        .background(.blue.gradient)
-                                        .clipShape(Circle())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-
-                    if avatarImage != nil {
-                        Button("Profilbild entfernen", role: .destructive) {
-                            deleteAvatar()
-                        }
-                    }
                 }
 
                 // MARK: Profil
@@ -133,7 +141,6 @@ struct AccountDetailView: View {
                 Section("Profil") {
                     LabeledContent("Spieler", value: userProfile.playerName)
 
-                    // Dev-Rollen-Picker (nur fuer Hauptentwickler)
                     if isDeveloper {
                         Picker("Rolle", selection: Binding(
                             get: { authService.currentRole },
@@ -148,48 +155,14 @@ struct AccountDetailView: View {
                     } else {
                         LabeledContent("Rolle", value: userProfile.role.displayName)
                     }
-
                 }
 
-                // MARK: Funktionen
-
-                Section("Funktion") {
-                    HStack(spacing: 10) {
-                        ForEach(PlayerFunction.allCases) { fn in
-                            let isActive = userProfile.functions.contains(fn)
-                            let canEdit = authService.currentRole.canManageCalls
-
-                            Button {
-                                guard canEdit else { return }
-                                Task { await toggleOwnFunction(fn) }
-                            } label: {
-                                VStack(spacing: 6) {
-                                    Image(systemName: fn.icon)
-                                        .font(.title3)
-                                        .foregroundStyle(isActive ? .white : fn.color)
-                                        .frame(width: 40, height: 40)
-                                        .background(isActive ? fn.color : fn.color.opacity(0.1))
-                                        .clipShape(Circle())
-                                        .overlay(
-                                            Circle()
-                                                .strokeBorder(fn.color.opacity(0.3), lineWidth: isActive ? 0 : 1.5)
-                                        )
-
-                                    Text(fn.displayName)
-                                        .font(.caption2)
-                                        .fontWeight(isActive ? .semibold : .regular)
-                                        .foregroundStyle(isActive ? fn.color : .secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(!canEdit)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
+                // MARK: Travian
 
                 travianSection(for: userProfile)
+
+                // MARK: Prestige
+
                 prestigeSection(for: userProfile)
 
                 // MARK: Verwaltung
@@ -205,17 +178,13 @@ struct AccountDetailView: View {
                     }
                 }
 
-                // MARK: Abmelden
+                // MARK: Account
 
                 Section {
                     Button("Abmelden", role: .destructive) {
-                        authService.signOut()
+                        showLogoutConfirm = true
                     }
-                }
 
-                // MARK: Account löschen
-
-                Section {
                     Button(role: .destructive) {
                         showDeleteAlert = true
                     } label: {
@@ -242,10 +211,33 @@ struct AccountDetailView: View {
             }
         }
         .navigationTitle(authService.profile?.playerName ?? "Account")
-        .onAppear { loadAvatar() }
-        .sheet(isPresented: $showVerifySheet) {
-            TravianVerifyView()
-                .environment(authService)
+        .onAppear {
+            loadAvatar()
+            loadPrestigeInput()
+        }
+
+        // MARK: - Sheets & Dialogs
+
+        .sheet(isPresented: $showAvatarSheet) {
+            AvatarEditSheet(
+                avatarImage: avatarImage,
+                onPhotoPicker: { showPhotoPicker = true },
+                onPreset: { applyPreset($0) },
+                onRemove: { deleteAvatar() },
+                onAvatarGenerator: {
+                    showAvatarSheet = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showAvatarGenerator = true
+                    }
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showAvatarGenerator) {
+            AvatarGeneratorView(onAvatarSaved: { image in
+                saveAvatar(image)
+            })
         }
         .sheet(isPresented: $showPhotoPicker) {
             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
@@ -254,33 +246,32 @@ struct AccountDetailView: View {
             .photosPickerStyle(.inline)
             .presentationDetents([.medium])
         }
+        .sheet(isPresented: $showVerifySheet) {
+            TravianVerifyView()
+                .environment(authService)
+        }
         .onChange(of: selectedPhotoItem) { _, newItem in
             Task {
                 guard let newItem else { return }
                 if let data = try? await newItem.loadTransferable(type: Data.self),
                    let uiImage = UIImage(data: data) {
-                    avatarImage = uiImage
-                    saveAvatarLocally(uiImage)
+                    saveAvatar(uiImage)
                     showPhotoPicker = false
+                    showAvatarSheet = false
                 }
             }
         }
-        .confirmationDialog("Profilbild", isPresented: $showAvatarOptions) {
-            Button("Foto hochladen") { showPhotoPicker = true }
-            if avatarImage != nil {
-                Button("Profilbild entfernen", role: .destructive) { deleteAvatar() }
+
+        // Abmelden-Bestaetigung
+        .alert("Abmelden?", isPresented: $showLogoutConfirm) {
+            Button("Abbrechen", role: .cancel) { }
+            Button("Abmelden", role: .destructive) {
+                authService.signOut()
             }
-            Button("Abbrechen", role: .cancel) { }
-        }
-        // Prestige-Alert
-        .alert("Prestige-Punkte", isPresented: $showPrestigeAlert) {
-            TextField("Punktzahl", text: $prestigeInput)
-                .keyboardType(.numberPad)
-            Button("Speichern") { savePrestigePoints() }
-            Button("Abbrechen", role: .cancel) { }
         } message: {
-            Text("Gib deine Gesamt-Prestigepunkte ein. Die Stufe wird automatisch berechnet.")
+            Text("Du wirst von deinem Account abgemeldet.")
         }
+
         // Erster Alert: Warnung
         .alert("Account löschen?", isPresented: $showDeleteAlert) {
             Button("Abbrechen", role: .cancel) { }
@@ -290,7 +281,8 @@ struct AccountDetailView: View {
         } message: {
             Text("Dein Account und alle zugehörigen Daten (Profil, Dörfer, Truppen, Pledges) werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.")
         }
-        // Zweiter Alert: Finale Bestätigung
+
+        // Zweiter Alert: Finale Bestaetigung
         .alert("Bist du sicher?", isPresented: $showDeleteConfirm) {
             Button("Abbrechen", role: .cancel) { }
             Button("Ja, Account löschen", role: .destructive) {
@@ -316,7 +308,13 @@ struct AccountDetailView: View {
                 }
 
                 fealtyStepperView()
-                refreshButton()
+                plusAccountToggle()
+
+                Button {
+                    showVerifySheet = true
+                } label: {
+                    Label("Welt wechseln", systemImage: "arrow.triangle.2.circlepath")
+                }
             } header: {
                 Text("Travian")
             } footer: {
@@ -329,6 +327,7 @@ struct AccountDetailView: View {
                 } label: {
                     Label("Travian-Account verknüpfen", systemImage: "link.badge.plus")
                 }
+                plusAccountToggle()
             }
         }
     }
@@ -352,57 +351,49 @@ struct AccountDetailView: View {
     }
 
     @ViewBuilder
-    private func refreshButton() -> some View {
-        Button {
-            Task { await refreshTravianData() }
-        } label: {
+    private func plusAccountToggle() -> some View {
+        Toggle(isOn: $hasPlusAccount) {
             HStack {
-                if isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-                Label(
-                    isRefreshing ? "Aktualisiere..." : "Daten aktualisieren",
-                    systemImage: "arrow.clockwise"
-                )
+                Text("Plus Account")
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(.yellow)
+                    .font(.caption)
             }
-        }
-        .disabled(isRefreshing)
-
-        if let refreshMessage {
-            Text(refreshMessage)
-                .font(.caption)
-                .foregroundStyle(refreshMessage.contains("Fehler") ? .red : .green)
         }
     }
 
-    // MARK: - Prestige Section
+    // MARK: - Prestige Section (Inline)
 
     @ViewBuilder
     private func prestigeSection(for userProfile: UserProfile) -> some View {
         Section {
-            Button {
-                prestigeInput = "\(authService.profile?.prestigePoints ?? 0)"
-                showPrestigeAlert = true
-            } label: {
-                HStack {
-                    Text("Prestige")
-                    Spacer()
-                    let level = userProfile.prestigeLevel
-                    if level > 0 {
-                        Text("Stufe \(level)")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    } else {
-                        Text("Nicht gesetzt")
-                            .foregroundStyle(.secondary)
+            HStack {
+                Text("Prestige-Punkte")
+                Spacer()
+                TextField("0", text: $prestigeInput)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 100)
+                    .focused($prestigeFieldFocused)
+                    .onChange(of: prestigeFieldFocused) { _, focused in
+                        if !focused { savePrestigePoints() }
                     }
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+            }
+
+            HStack {
+                Text("Stufe")
+                Spacer()
+                let level = computedPrestigeLevel
+                if level > 0 {
+                    Text("\(level)")
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("—")
+                        .foregroundStyle(.secondary)
                 }
             }
-            .buttonStyle(.plain)
 
             Link(destination: URL(string: "https://support.kingdoms.com/de/support/solutions/articles/7000092677-der-weg-zum-prestige")!) {
                 Label("Prestige-Stufen nachschauen", systemImage: "arrow.up.right.square")
@@ -412,6 +403,25 @@ struct AccountDetailView: View {
             Text("Prestige")
         } footer: {
             Text("Prestige ist an deinen Travian-Account gebunden und gilt über alle Königreiche hinweg.")
+        }
+    }
+
+    // MARK: - Computed
+
+    private var computedPrestigeLevel: Int {
+        guard let points = Int(prestigeInput), points > 0 else { return 0 }
+        return UserProfile.prestigeLevel(from: points)
+    }
+
+    // MARK: - Role Badge Color
+
+    private func roleBadgeColor(for role: UserRole) -> Color {
+        switch role {
+        case .governor: return .gray
+        case .duke:     return .blue
+        case .viceking: return .purple
+        case .king:     return .orange
+        case .admin:    return .red
         }
     }
 
@@ -437,85 +447,27 @@ struct AccountDetailView: View {
         }
     }
 
-    // MARK: - Eigene Funktion toggeln
-
-    private func toggleOwnFunction(_ function: PlayerFunction) async {
-        guard let userId = authService.currentUserId,
-              var current = authService.profile?.functions else { return }
-
-        if current.contains(function) {
-            current.removeAll { $0 == function }
-        } else {
-            current.append(function)
-        }
-
-        let rawValues = current.map { $0.rawValue }
-
-        do {
-            try await SupabaseManager.client
-                .from("profiles")
-                .update(["functions": rawValues])
-                .eq("id", value: userId.uuidString)
-                .execute()
-
-            authService.profile?.functions = current
-        } catch {
-            print("[AccountDetailView] toggleOwnFunction Fehler: \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - Travian Daten aktualisieren
-
-    private func refreshTravianData() async {
-        guard let worldId = authService.profile?.worldId, !worldId.isEmpty else {
-            refreshMessage = "Fehler: Keine Spielwelt gesetzt"
-            return
-        }
-
-        isRefreshing = true
-        refreshMessage = nil
-
-        do {
-            let result = try await TravianAPIService.refreshWorldData(worldId: worldId)
-            await authService.refreshProfile()
-            await ProfileStore.shared.loadFromSupabase()
-            await updateTroopMultiplier(worldId: worldId)
-
-            if result.cached == true {
-                refreshMessage = "Daten sind aktuell (bereits heute geladen)"
-            } else {
-                refreshMessage = "Daten aktualisiert (\(result.villages.count) Dörfer)"
-            }
-        } catch {
-            refreshMessage = "Fehler: \(error.localizedDescription)"
-        }
-
-        isRefreshing = false
-    }
-
     // MARK: - Avatar
 
     private func loadAvatar() {
         guard let userId = authService.currentUserId else { return }
-        let url = avatarFileURL(for: userId)
-        if let data = try? Data(contentsOf: url),
-           let image = UIImage(data: data) {
-            avatarImage = image
+        if let local = AvatarService.loadLocal(userId: userId) {
+            avatarImage = local
+            return
         }
+        Task { avatarImage = await AvatarService.download(userId: userId) }
     }
 
-    private func saveAvatarLocally(_ image: UIImage) {
-        guard let userId = authService.currentUserId,
-              let data = image.jpegData(compressionQuality: 0.8) else { return }
-        let url = avatarFileURL(for: userId)
-        try? data.write(to: url)
+    private func saveAvatar(_ image: UIImage) {
+        guard let userId = authService.currentUserId else { return }
+        avatarImage = image
+        Task { await AvatarService.upload(image, userId: userId) }
     }
 
     private func deleteAvatar() {
         guard let userId = authService.currentUserId else { return }
-        let url = avatarFileURL(for: userId)
-        try? FileManager.default.removeItem(at: url)
         avatarImage = nil
+        Task { await AvatarService.delete(userId: userId) }
     }
 
     @MainActor
@@ -523,11 +475,9 @@ struct AccountDetailView: View {
         let size: CGFloat = 200
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
         let image = renderer.image { ctx in
-            // Hintergrund
             UIColor.systemBlue.setFill()
             ctx.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: size, height: size))
 
-            // SF Symbol rendern
             let config = UIImage.SymbolConfiguration(pointSize: size * 0.45, weight: .medium)
             if let symbol = UIImage(systemName: preset.rawValue, withConfiguration: config)?
                 .withTintColor(.white, renderingMode: .alwaysOriginal) {
@@ -539,11 +489,39 @@ struct AccountDetailView: View {
                 symbol.draw(at: origin)
             }
         }
-        avatarImage = image
-        saveAvatarLocally(image)
+        saveAvatar(image)
+        showAvatarSheet = false
     }
 
-    // MARK: - Account löschen
+    // MARK: - Prestige
+
+    private func loadPrestigeInput() {
+        prestigeInput = "\(authService.profile?.prestigePoints ?? 0)"
+    }
+
+    private func savePrestigePoints() {
+        guard let points = Int(prestigeInput), points >= 0 else { return }
+        guard points != authService.profile?.prestigePoints else { return }
+
+        let oldPoints = authService.profile?.prestigePoints
+        authService.profile?.prestigePoints = points
+
+        Task {
+            guard let userId = authService.currentUserId else { return }
+            do {
+                try await SupabaseManager.client
+                    .from("profiles")
+                    .update(["prestige_points": points])
+                    .eq("id", value: userId.uuidString)
+                    .execute()
+            } catch {
+                authService.profile?.prestigePoints = oldPoints ?? 0
+                print("[AccountDetailView] savePrestigePoints Fehler: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Account loeschen
 
     private func performDeleteAccount() async {
         isDeletingAccount = true
@@ -551,7 +529,6 @@ struct AccountDetailView: View {
 
         do {
             try await authService.deleteAccount()
-            // Erfolg → authStateChanges leitet zurück zum Login-Screen
         } catch {
             deleteError = error.localizedDescription
         }
@@ -559,7 +536,7 @@ struct AccountDetailView: View {
         isDeletingAccount = false
     }
 
-    // MARK: - Treue / Prestige
+    // MARK: - Treue
 
     private func updateFealty(level: Int) async {
         guard let userId = authService.currentUserId else { return }
@@ -575,47 +552,88 @@ struct AccountDetailView: View {
         }
     }
 
-    private func savePrestigePoints() {
-        guard let points = Int(prestigeInput), points >= 0 else { return }
-        guard points != authService.profile?.prestigePoints else { return }
-        // Optimistic update — UI sofort aktualisieren
-        let oldPoints = authService.profile?.prestigePoints
-        authService.profile?.prestigePoints = points
-        Task {
-            guard let userId = authService.currentUserId else { return }
-            do {
-                try await SupabaseManager.client
-                    .from("profiles")
-                    .update(["prestige_points": points])
-                    .eq("id", value: userId.uuidString)
-                    .execute()
-            } catch {
-                // Rollback bei Fehler
-                authService.profile?.prestigePoints = oldPoints ?? 0
-                print("[AccountDetailView] savePrestigePoints Fehler: \(error.localizedDescription)")
+}
+
+// MARK: - Avatar Edit Sheet
+
+private struct AvatarEditSheet: View {
+
+    let avatarImage: UIImage?
+    let onPhotoPicker: () -> Void
+    let onPreset: (AvatarPreset) -> Void
+    let onRemove: () -> Void
+    var onAvatarGenerator: (() -> Void)? = nil
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                // Avatar Generator
+                if let onAvatarGenerator {
+                    Section {
+                        Button {
+                            dismiss()
+                            onAvatarGenerator()
+                        } label: {
+                            Label("Avatar erstellen", systemImage: "face.smiling.inverse")
+                        }
+                    }
+                }
+
+                // Foto hochladen
+                Section {
+                    Button {
+                        onPhotoPicker()
+                    } label: {
+                        Label("Foto aus Bibliothek wählen", systemImage: "photo.on.rectangle.angled")
+                    }
+                }
+
+                // Preset-Avatare
+                Section("Standardvorgaben") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                        ForEach(AvatarPreset.allCases) { preset in
+                            Button {
+                                onPreset(preset)
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Image(systemName: preset.rawValue)
+                                        .font(.title2)
+                                        .frame(width: 50, height: 50)
+                                        .foregroundStyle(.white)
+                                        .background(.blue.gradient)
+                                        .clipShape(Circle())
+
+                                    Text(preset.label)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                // Entfernen
+                if avatarImage != nil {
+                    Section {
+                        Button("Profilbild entfernen", role: .destructive) {
+                            onRemove()
+                            dismiss()
+                        }
+                    }
+                }
             }
-        }
-    }
-
-    private func updateTroopMultiplier(worldId: String) async {
-        struct GameworldRow: Decodable {
-            let speed_troops: Int?
-        }
-
-        do {
-            let row: GameworldRow = try await SupabaseManager.client
-                .from("gameworlds")
-                .select("speed_troops")
-                .eq("world_id", value: worldId)
-                .single()
-                .execute()
-                .value
-
-            if let speedTroops = row.speed_troops, speedTroops > 0 {
-                UserDefaults.standard.set(Double(speedTroops), forKey: "troopMultiplier")
+            .navigationTitle("Profilbild")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fertig") { dismiss() }
+                        .fontWeight(.semibold)
+                }
             }
-        } catch {
-            // Nicht kritisch — Multiplier bleibt auf altem Wert
         }
     }
 }

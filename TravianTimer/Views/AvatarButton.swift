@@ -40,11 +40,13 @@ struct AvatarImage: View {
 
     private func loadAvatar() {
         guard let userId = authService.currentUserId else { return }
-        let url = avatarFileURL(for: userId)
-        if let data = try? Data(contentsOf: url),
-           let image = UIImage(data: data) {
-            avatarImage = image
+        // Lokal zuerst (schnell)
+        if let local = AvatarService.loadLocal(userId: userId) {
+            avatarImage = local
+            return
         }
+        // Remote laden (async)
+        Task { avatarImage = await AvatarService.download(userId: userId) }
     }
 }
 
@@ -90,11 +92,11 @@ struct AvatarButton: View {
 
     private func loadAvatar() {
         guard let userId = authService.currentUserId else { return }
-        let url = avatarFileURL(for: userId)
-        if let data = try? Data(contentsOf: url),
-           let image = UIImage(data: data) {
-            avatarImage = image
+        if let local = AvatarService.loadLocal(userId: userId) {
+            avatarImage = local
+            return
         }
+        Task { avatarImage = await AvatarService.download(userId: userId) }
     }
 }
 
@@ -199,12 +201,15 @@ private struct AccountQuickSheet: View {
                         .fontWeight(.semibold)
                 }
             }
-            .confirmationDialog("Abmelden?", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+            .alert("Abmelden?", isPresented: $showLogoutConfirm) {
+                Button("Abbrechen", role: .cancel) {}
                 Button("Abmelden", role: .destructive) {
                     dismiss()
-                    authService.signOut()
+                    // Delay damit Sheet sauber schliesst bevor Auth-State wechselt
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        authService.signOut()
+                    }
                 }
-                Button("Abbrechen", role: .cancel) {}
             } message: {
                 Text("Du wirst von deinem Account abgemeldet.")
             }

@@ -50,6 +50,32 @@ struct ToolsTabView: View {
                         }
                         .padding(.top, 8)
                         .padding(.bottom, 20)
+                    } else {
+                        // MARK: Empty-State Tipp
+                        HStack(spacing: 12) {
+                            Image(systemName: "pin.fill")
+                                .font(.title3)
+                                .foregroundStyle(.orange)
+                                .frame(width: 36, height: 36)
+                                .background(.orange.opacity(0.12))
+                                .clipShape(Circle())
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Tipp")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text("Wische in einer Kategorie nach links, um Tools hier anzuheften.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
                     }
 
                     // MARK: Alle Tools
@@ -73,7 +99,6 @@ struct ToolsTabView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     AvatarButton()
                 }
-                .sharedBackgroundVisibility(.hidden)
             }
             .navigationDestination(for: Tool.self) { tool in
                 tool.destination
@@ -131,6 +156,7 @@ private struct FavoriteCard: View {
 
 enum FavoriteToolItem: String, CaseIterable, Identifiable, Hashable {
     // Hero
+    case heroConfigurator
     case heroHelmets
     case heroArmor
     case heroBoots
@@ -138,57 +164,91 @@ enum FavoriteToolItem: String, CaseIterable, Identifiable, Hashable {
     case heroLeftHand
     case heroRightHand
     // Troops
+    case troopsCalculator
+    case troopsInterception
+    case troopsResearchCalc
+    case troopsRobberCalc
     case troopsGauls
     case troopsRomans
     case troopsTeutons
     // Infrastructure
     case infraBuildingCosts
+    case infraResourceParser
+    case infraVillagePlanner
+    case infraUpgradeCalc
     // Guides
+    case guideQuests
     case guideSchnellsiedeln
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .heroConfigurator: return "Konfigurator"
         case .heroHelmets:      return "Helme"
         case .heroArmor:        return "Rüstungen"
         case .heroBoots:        return "Schuhe"
         case .heroHorses:       return "Pferde"
         case .heroLeftHand:     return "Linke Hand"
         case .heroRightHand:    return "Rechte Hand"
+        case .troopsCalculator: return "Truppenrechner"
+        case .troopsInterception: return "Abfang-Rechner"
+        case .troopsResearchCalc: return "Forschungsrechner"
+        case .troopsRobberCalc: return "Räuberlager"
         case .troopsGauls:      return "Gallier"
         case .troopsRomans:     return "Römer"
         case .troopsTeutons:    return "Germanen"
-        case .infraBuildingCosts: return "Baukosten"
+        case .infraBuildingCosts: return "Gebäude"
+        case .infraResourceParser: return "Ressourcen-Parser"
+        case .infraVillagePlanner: return "Dorfplaner"
+        case .infraUpgradeCalc: return "Ausbau-Rechner"
+        case .guideQuests:         return "Quests"
         case .guideSchnellsiedeln: return "Schnellsiedeln"
         }
     }
 
     var icon: String {
         switch self {
+        case .heroConfigurator: return "slider.horizontal.3"
         case .heroHelmets:      return "crown.fill"
         case .heroArmor:        return "shield.checkerboard"
         case .heroBoots:        return "shoeprints.fill"
         case .heroHorses:       return "hare.fill"
         case .heroLeftHand:     return "hand.raised.fill"
         case .heroRightHand:    return "hand.raised.fingers.spread.fill"
+        case .troopsCalculator: return "function"
+        case .troopsInterception: return "scope"
+        case .troopsResearchCalc: return "flask.fill"
+        case .troopsRobberCalc: return "pawprint.fill"
         case .troopsGauls:      return "leaf.fill"
         case .troopsRomans:     return "laurel.leading"
         case .troopsTeutons:    return "hammer.fill"
-        case .infraBuildingCosts: return "hammer.fill"
+        case .infraBuildingCosts: return "building.2.fill"
+        case .infraResourceParser: return "leaf.fill"
+        case .infraVillagePlanner: return "square.grid.3x3.topleft.filled"
+        case .infraUpgradeCalc: return "chart.line.uptrend.xyaxis"
+        case .guideQuests:         return "text.book.closed.fill"
         case .guideSchnellsiedeln: return "hare.fill"
         }
     }
 
     var color: Color {
         switch self {
-        case .heroHelmets, .heroArmor, .heroBoots,
+        case .heroConfigurator, .heroHelmets, .heroArmor, .heroBoots,
              .heroHorses, .heroLeftHand, .heroRightHand:
             return .orange
-        case .troopsGauls, .troopsRomans, .troopsTeutons:
+        case .troopsCalculator, .troopsInterception, .troopsRobberCalc, .troopsGauls, .troopsRomans, .troopsTeutons:
             return .red
-        case .infraBuildingCosts:
+        case .troopsResearchCalc:
+            return .indigo
+        case .infraBuildingCosts, .infraResourceParser:
             return .blue
+        case .infraVillagePlanner:
+            return .purple
+        case .infraUpgradeCalc:
+            return .teal
+        case .guideQuests:
+            return .indigo
         case .guideSchnellsiedeln:
             return .green
         }
@@ -197,16 +257,25 @@ enum FavoriteToolItem: String, CaseIterable, Identifiable, Hashable {
     @ViewBuilder
     var destination: some View {
         switch self {
+        case .heroConfigurator: HeroConfiguratorView()
         case .heroHelmets:      HelmetsView()
         case .heroArmor:        ArmorView()
         case .heroBoots:        BootsView()
         case .heroHorses:       HorsesView()
         case .heroLeftHand:     LeftHandView()
         case .heroRightHand:    RightHandFavoriteWrapper()
+        case .troopsCalculator: TroopCalculatorView()
+        case .troopsInterception: InterceptionCalculatorView()
+        case .troopsResearchCalc: ResearchCalculatorView()
+        case .troopsRobberCalc: RobberCampCalculatorView()
         case .troopsGauls:      TroopsGaulsView()
         case .troopsRomans:     TroopsRomansView()
         case .troopsTeutons:    TroopsTeutonsView()
-        case .infraBuildingCosts: BuildingCostsView()
+        case .infraBuildingCosts: BuildingsView()
+        case .infraResourceParser: ResourceParserView()
+        case .infraVillagePlanner: VillagePlannerListView()
+        case .infraUpgradeCalc: UpgradeCalculatorView()
+        case .guideQuests:         QuestsGuideView()
         case .guideSchnellsiedeln: SchnellsiedelGuideView()
         }
     }

@@ -39,7 +39,6 @@ struct CallsTabView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     AvatarButton()
                 }
-                .sharedBackgroundVisibility(.hidden)
             }
             .sheet(isPresented: $showParser) {
                 ParserTabView()
@@ -251,8 +250,11 @@ struct CallsTabView: View {
     private func navigateToDeepLinkIfNeeded() {
         store.pullPendingDeepLinkFromDefaults()
         if let id = store.pendingOpenCallId {
+            // Nur navigieren wenn der Call bereits geladen ist.
+            // Falls Calls noch nicht vom Server geladen: pendingOpenCallId bleibt
+            // gesetzt und .task ruft nach dem Laden erneut auf.
+            guard store.calls.contains(where: { $0.id == id }) else { return }
             path.append(id)
-            // Sofort zuruecksetzen damit Back-Navigation nicht erneut triggert
             store.pendingOpenCallId = nil
         }
     }

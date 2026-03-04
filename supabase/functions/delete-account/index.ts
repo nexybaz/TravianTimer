@@ -93,6 +93,20 @@ serve(async (req) => {
 
     console.log(`[delete-account] User-Daten bereinigt: ${userId}`);
 
+    // 2b. Avatar aus Storage loeschen (best-effort, Fehler nicht fatal)
+    try {
+      const { error: storageError } = await supabaseAdmin.storage
+        .from("avatars")
+        .remove([`${userId}/avatar.jpg`]);
+      if (storageError) {
+        console.warn("[delete-account] Avatar löschen fehlgeschlagen:", storageError.message);
+      } else {
+        console.log(`[delete-account] Avatar gelöscht: ${userId}`);
+      }
+    } catch (e) {
+      console.warn("[delete-account] Avatar löschen übersprungen:", e);
+    }
+
     // 3. Auth-User via Admin API loeschen
     const { error: deleteError } =
       await supabaseAdmin.auth.admin.deleteUser(userId);

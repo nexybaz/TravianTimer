@@ -21,9 +21,14 @@ struct CallDetailView: View {
         self.initialExpandedRowKey = initialExpandedRowKey
     }
 
-    @State private var timeSort: TimeSort = .early
-    @State private var hideLate: Bool = false
-    @State private var hideHidden: Bool = true
+    @AppStorage("callDetail_timeSortRaw") private var timeSortRaw = TimeSort.early.rawValue
+    @AppStorage("callDetail_hideLate") private var hideLate = false
+    @AppStorage("callDetail_hideHidden") private var hideHidden = true
+    @AppStorage("callDetail_showOnlyPledged") private var showOnlyPledged = false
+
+    private var timeSort: TimeSort {
+        TimeSort(rawValue: timeSortRaw) ?? .early
+    }
     @State private var hiddenRowKeys: Set<String> = []
     @State private var expandedRowKey: String? = nil
     @State private var toastText: String? = nil
@@ -230,19 +235,22 @@ struct CallDetailView: View {
                 Menu {
                     Section("Sortierung") {
                         Button {
-                            timeSort = .early
+                            timeSortRaw = TimeSort.early.rawValue
                         } label: {
                             Label("Zeit aufsteigend", systemImage: timeSort == .early ? "checkmark" : "")
                         }
 
                         Button {
-                            timeSort = .late
+                            timeSortRaw = TimeSort.late.rawValue
                         } label: {
                             Label("Zeit absteigend", systemImage: timeSort == .late ? "checkmark" : "")
                         }
                     }
 
                     Section("Filter") {
+                        Toggle(isOn: $showOnlyPledged) {
+                            Label("Nur gepledgte", systemImage: "checkmark.shield")
+                        }
                         Toggle(isOn: $hideLate) {
                             Text("Zu spät ausblenden")
                         }
@@ -285,9 +293,10 @@ struct CallDetailView: View {
             now = tick
             rebuildResults()
         }
-        .onChange(of: timeSort) { _, _ in rebuildResults() }
+        .onChange(of: timeSortRaw) { _, _ in rebuildResults() }
         .onChange(of: hideLate) { _, _ in rebuildResults() }
         .onChange(of: hideHidden) { _, _ in rebuildResults() }
+        .onChange(of: showOnlyPledged) { _, _ in rebuildResults() }
         .onChange(of: expandedRowKey) { old, new in
             if old != nil && new == nil {
                 now = .now
@@ -440,6 +449,22 @@ struct CallDetailView: View {
         if hideHidden && !hiddenRowKeys.isEmpty {
             filtered = filtered.filter { !hiddenRowKeys.contains(rowKey($0)) }
         }
+
+        // Auto-Hide: Wenn alle Truppen anderswo gepledget und hier nichts → nicht anzeigen
+        filtered = filtered.filter { row in
+            let available = availableCount(for: row)
+            let existing = existingPledgeCount(for: row)
+            // nil = keine troopCounts → normal anzeigen (Import-Hinweis)
+            // 0 + kein Pledge hier → komplett verstecken
+            if let available, available == 0, existing == 0 { return false }
+            return true
+        }
+
+        // Filter: Nur Rows mit bestehendem Pledge anzeigen
+        if showOnlyPledged {
+            filtered = filtered.filter { existingPledgeCount(for: $0) > 0 }
+        }
+
         let ascending = (timeSort == .early)
 
         let sorted = filtered.sorted {
@@ -473,13 +498,22 @@ struct CallDetailView: View {
 
     // MARK: - Pledge Section
 
-    /// Verfuegbare Truppen aus VillageProfile.troopCounts
+    /// Verfuegbare Truppen aus VillageProfile.troopCounts abzueglich anderswo gepledgter Truppen.
+    /// Gibt nil zurueck wenn keine troopCounts vorhanden (→ Import-Hinweis).
+    /// Gibt 0 zurueck wenn alle Truppen in anderen Calls gepledget sind.
     private func availableCount(for row: OptionRow) -> Int? {
         guard let village = ProfileStore.shared.villages.first(where: { $0.name == row.start.name }) else {
             return nil
         }
-        let count = village.troopCounts[row.troop.rawValue] ?? 0
-        return count > 0 ? count : nil
+        let total = village.troopCounts[row.troop.rawValue] ?? 0
+        guard total > 0 else { return nil }
+        let elsewhere = store.pledgedElsewhere(
+            villageName: row.start.name,
+            troopKind: row.troop.rawValue,
+            excludingCallId: call.id
+        )
+        let available = max(0, total - elsewhere)
+        return available
     }
 
     /// Bereits zugesicherte Menge fuer dieses Dorf+Truppentyp im aktuellen Call
@@ -551,7 +585,22 @@ struct CallDetailView: View {
                     Spacer()
                     Text("Verfügbar: \(maxCount)")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(maxCount == 0 ? .red : .secondary)
+                }
+
+                let elsewhere = store.pledgedElsewhere(
+                    villageName: row.start.name,
+                    troopKind: row.troop.rawValue,
+                    excludingCallId: call.id
+                )
+                if elsewhere > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.caption2)
+                        Text("\(elsewhere) in anderen Calls zugesichert")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.orange)
                 }
 
                 if let budget {

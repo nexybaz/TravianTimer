@@ -9,6 +9,36 @@ struct HeroToolView: View {
 
     var body: some View {
         List {
+            Section("Konfigurator") {
+                NavigationLink {
+                    HeroConfiguratorView()
+                        .environment(authService)
+                } label: {
+                    Label("Held konfigurieren", systemImage: "slider.horizontal.3")
+                }
+                .contextMenu {
+                    Button {
+                        withAnimation { favorites.toggle(FavoriteToolItem.heroConfigurator.rawValue) }
+                    } label: {
+                        Label(
+                            favorites.isFavorite(FavoriteToolItem.heroConfigurator.rawValue) ? "Aus Favoriten entfernen" : "An Tools anheften",
+                            systemImage: favorites.isFavorite(FavoriteToolItem.heroConfigurator.rawValue) ? "pin.slash" : "pin.fill"
+                        )
+                    }
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button {
+                        withAnimation { favorites.toggle(FavoriteToolItem.heroConfigurator.rawValue) }
+                    } label: {
+                        Label(
+                            favorites.isFavorite(FavoriteToolItem.heroConfigurator.rawValue) ? "Lösen" : "Anheften",
+                            systemImage: favorites.isFavorite(FavoriteToolItem.heroConfigurator.rawValue) ? "pin.slash" : "pin.fill"
+                        )
+                    }
+                    .tint(.orange)
+                }
+            }
+
             Section("Gegenstände") {
                 ForEach(HeroItem.allCases) { item in
                     NavigationLink(value: item) {

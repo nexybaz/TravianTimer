@@ -91,4 +91,55 @@ enum NotificationManager {
         let id = notificationId(callId: callId, row: row)
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
     }
+
+    // MARK: - Interception Reminders
+
+    static func scheduleInterceptionReminder(
+        villageName: String,
+        troop: TroopKind,
+        sendTime: Date,
+        leadMinutes: Int
+    ) async -> Bool {
+        let allowed = await ensureAuthorization()
+        guard allowed else { return false }
+
+        let fireDate = sendTime.addingTimeInterval(TimeInterval(-leadMinutes * 60))
+        guard fireDate > .now else { return false }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Abfang senden"
+        content.sound = .default
+
+        let sendText = sendTime.formatted(date: .omitted, time: .standard)
+        content.body = "\(villageName) → \(troop.uiName) absenden um \(sendText)"
+
+        let comps = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+
+        let id = interceptionNotificationId(villageName: villageName, troop: troop)
+        let req = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+
+        do {
+            try await UNUserNotificationCenter.current().add(req)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func cancelInterceptionReminder(villageName: String, troop: TroopKind) {
+        let id = interceptionNotificationId(villageName: villageName, troop: troop)
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+    }
+
+    private static func interceptionNotificationId(villageName: String, troop: TroopKind) -> String {
+        let safe = villageName
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "|", with: "_")
+        return "intercept.\(safe).\(troop.rawValue)"
+    }
 }
